@@ -5,4 +5,12 @@
         <!-- 10.0.2.2 localhost for the emulator (cloud functions tests using http)-->
         <domain includeSubdomains="true">10.0.2.2</domain>
     </domain-config>
+    <!-- Debug builds only: trust user-installed CAs, so that the mitmproxy CA from tools/replay works.
+         Android ignores this block in builds that are not debuggable. -->
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
 </network-security-config>

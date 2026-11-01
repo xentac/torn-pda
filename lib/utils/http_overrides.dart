@@ -4,6 +4,10 @@ import 'dart:io';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 
+// Capture builds for tools/replay pass --dart-define=PDA_PROXY=host:port. Dart's HttpClient
+// does not use the Android proxy, so without this the API calls would bypass mitmproxy.
+const String _proxy = String.fromEnvironment('PDA_PROXY');
+
 typedef RejectedConnectionReporter = void Function(String host, String issuer, String problem);
 
 class MyHttpOverrides extends HttpOverrides {
@@ -18,7 +22,14 @@ class MyHttpOverrides extends HttpOverrides {
 
   @override
   HttpClient createHttpClient(SecurityContext? context) {
-    return super.createHttpClient(context ?? _context)..badCertificateCallback = onBadCertificate;
+    final client = super.createHttpClient(context ?? _context)..badCertificateCallback = onBadCertificate;
+    if (_proxy.isNotEmpty) {
+      client.findProxy = (uri) => 'PROXY $_proxy';
+      // Replay builds only: accept the mitmproxy CA, and nothing else beyond the normal roots
+      client.badCertificateCallback = (cert, host, port) =>
+          cert.issuer.contains('mitmproxy') || onBadCertificate(cert, host, port);
+    }
+    return client;
   }
 
   @visibleForTesting
