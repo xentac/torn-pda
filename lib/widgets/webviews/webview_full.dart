@@ -1533,7 +1533,7 @@ class WebViewFullState extends State<WebViewFull>
 
             publishTabState();
           },
-          shouldOverrideUrlLoading: (c, action) => PerfTrace.cb(_tabUid, 'shouldOverrideUrlLoading', () async {
+          shouldOverrideUrlLoading: (c, action) => PerfTrace.cb(_tabUid, 'shouldOverrideUrlLoading', preNav: true, () async {
             final incomingUrl = action.request.url.toString();
 
             // Handle external schemes
@@ -1754,7 +1754,7 @@ class WebViewFullState extends State<WebViewFull>
 
               hideChatOnLoad();
 
-              final html = await webViewController!.getHtml();
+              final html = await PerfTrace.getHtml(_tabUid, webViewController);
               final document = parse(html);
 
               _assessGeneral(document);
@@ -1957,7 +1957,7 @@ class WebViewFullState extends State<WebViewFull>
                 _addExtraHeightForPullToRefresh();
               }
 
-              final html = await webViewController!.getHtml();
+              final html = await PerfTrace.getHtml(_tabUid, webViewController);
               final document = parse(html);
 
               // Force to show title
@@ -2076,7 +2076,7 @@ class WebViewFullState extends State<WebViewFull>
                 _tradesOnResourceTriggerTime = DateTime.now();
 
                 _tradesTriggered = true;
-                final html = await webViewController!.getHtml();
+                final html = await PerfTrace.getHtml(_tabUid, webViewController);
                 final document = parse(html);
                 final pageTitle = (await _getPageTitle(document))!.toLowerCase();
                 if (Platform.isIOS) {
@@ -2098,7 +2098,7 @@ class WebViewFullState extends State<WebViewFull>
                 _vaultOnResourceTriggerTime = DateTime.now();
 
                 if (!_vaultTriggered) {
-                  final html = await webViewController!.getHtml();
+                  final html = await PerfTrace.getHtml(_tabUid, webViewController);
                   final document = parse(html);
                   final pageTitle = (await _getPageTitle(document))!.toLowerCase();
                   _assessVault(doc: document, pageTitle: pageTitle);
@@ -2128,7 +2128,7 @@ class WebViewFullState extends State<WebViewFull>
                   _reportUrlVisit(uri);
                 }
 
-                final html = await webViewController!.getHtml();
+                final html = await PerfTrace.getHtml(_tabUid, webViewController);
                 dom.Document document = parse(html);
 
                 late List<dom.Element> query;
@@ -2140,7 +2140,7 @@ class WebViewFullState extends State<WebViewFull>
                   } else {
                     await Future.delayed(const Duration(seconds: 1));
                     if (!mounted) break;
-                    final updatedHtml = await webViewController!.getHtml();
+                    final updatedHtml = await PerfTrace.getHtml(_tabUid, webViewController);
                     document = parse(updatedHtml);
                   }
                 }
@@ -2164,7 +2164,7 @@ class WebViewFullState extends State<WebViewFull>
                   _reportUrlVisit(uri);
                 }
 
-                final html = await webViewController!.getHtml();
+                final html = await PerfTrace.getHtml(_tabUid, webViewController);
                 dom.Document document = parse(html);
 
                 late List<dom.Element> query;
@@ -2176,7 +2176,7 @@ class WebViewFullState extends State<WebViewFull>
                   } else {
                     await Future.delayed(const Duration(seconds: 1));
                     if (!mounted) break;
-                    final updatedHtml = await webViewController!.getHtml();
+                    final updatedHtml = await PerfTrace.getHtml(_tabUid, webViewController);
                     document = parse(updatedHtml);
                   }
                 }
@@ -2667,7 +2667,7 @@ class WebViewFullState extends State<WebViewFull>
         return false;
       }
 
-      final html = await webViewController?.getHtml();
+      final html = await PerfTrace.getHtml(_tabUid, webViewController);
       if (html == null || html.isEmpty) return false;
       final document = parse(html);
       final miniProfile = document.querySelector("[class*='profile-mini-_wrapper_']");
@@ -2872,7 +2872,7 @@ class WebViewFullState extends State<WebViewFull>
     }
 
     if (document == null) {
-      final html = await webViewController?.getHtml();
+      final html = await PerfTrace.getHtml(_tabUid, webViewController);
       if (html == null || html.isEmpty) return;
       document = parse(html);
     }
@@ -2915,7 +2915,7 @@ class WebViewFullState extends State<WebViewFull>
       _webViewProvider.loginErrorRetrySeconds++;
       await Future.delayed(Duration(seconds: _webViewProvider.loginErrorRetrySeconds));
 
-      final newDoc = parse(await webViewController!.getHtml());
+      final newDoc = parse(await PerfTrace.getHtml(_tabUid, webViewController));
       if (newDoc.querySelectorAll("[class*='logInWrap_']").isEmpty ||
           newDoc.body!.innerHtml.contains("failures from your IP address")) {
         return;
@@ -3900,7 +3900,7 @@ class WebViewFullState extends State<WebViewFull>
     if (anySectionTriggered) {
       dom.Document doc;
       var pageTitle = "";
-      final html = await webViewController!.getHtml();
+      final html = await PerfTrace.getHtml(_tabUid, webViewController);
       if (html == null) return;
 
       doc = parse(html);
@@ -4198,7 +4198,7 @@ class WebViewFullState extends State<WebViewFull>
     // Try to get the page title after the section loads
     if (_currentUrl.contains('trade') && pageTitle.isEmpty) {
       await Future.delayed(const Duration(milliseconds: 1500));
-      final html = await webViewController!.getHtml();
+      final html = await PerfTrace.getHtml(_tabUid, webViewController);
       document = parse(html);
       pageTitle = (await _getPageTitle(document))!.toLowerCase();
     }
@@ -4220,7 +4220,7 @@ class WebViewFullState extends State<WebViewFull>
 
       // This is a trade that was just finished (step=view instead of step=logview)
       // We hide the widget to avoid sides getting mixed up
-      String? html = await webViewController!.getHtml();
+      String? html = await PerfTrace.getHtml(_tabUid, webViewController);
       if (html != null && html.contains("The trade was accepted by")) {
         final nameBar = document.querySelector(".right .title-black")?.innerHtml ?? "";
         if (nameBar.contains("items traded")) {
@@ -4276,7 +4276,7 @@ class WebViewFullState extends State<WebViewFull>
     try {
       if (totalFinds.isEmpty) {
         await Future.delayed(const Duration(milliseconds: 1500));
-        final updatedHtml = await webViewController!.getHtml();
+        final updatedHtml = await PerfTrace.getHtml(_tabUid, webViewController);
         final updatedDoc = parse(updatedHtml);
         document = updatedDoc;
       }
@@ -4463,7 +4463,7 @@ class WebViewFullState extends State<WebViewFull>
           _assessTrades(doc, pageTitle);
         } else {
           _currentUrl = (await webViewController!.getUrl()).toString();
-          final html = await webViewController!.getHtml();
+          final html = await PerfTrace.getHtml(_tabUid, webViewController);
           final d = parse(html);
           final t = (await _getPageTitle(d))!.toLowerCase();
           _assessTrades(d, t);
@@ -4520,7 +4520,7 @@ class WebViewFullState extends State<WebViewFull>
       } else {
         await Future.delayed(const Duration(milliseconds: 500));
         if (!mounted) break;
-        final updatedHtml = await webViewController!.getHtml();
+        final updatedHtml = await PerfTrace.getHtml(_tabUid, webViewController);
         doc = parse(updatedHtml);
       }
     }
@@ -4574,7 +4574,7 @@ class WebViewFullState extends State<WebViewFull>
     _vaultEnabled = await Prefs().getVaultEnabled();
     // Reset _vaultTriggered so that we can call _assessVault() again
     _vaultTriggered = false;
-    final html = await webViewController!.getHtml();
+    final html = await PerfTrace.getHtml(_tabUid, webViewController);
     final document = parse(html);
     final pageTitle = (await _getPageTitle(document))!.toLowerCase();
     _assessVault(doc: document, pageTitle: pageTitle, fromReassess: true);
@@ -5379,7 +5379,7 @@ class WebViewFullState extends State<WebViewFull>
         for (int attempt = 0; attempt < 5; attempt++) {
           await Future.delayed(const Duration(milliseconds: 500));
           if (!mounted) return;
-          final html = await webViewController?.getHtml();
+          final html = await PerfTrace.getHtml(_tabUid, webViewController);
           if (html == null) continue;
           final document = parse(html);
           final h4Elements = document.querySelectorAll('h4');
@@ -6035,7 +6035,7 @@ class WebViewFullState extends State<WebViewFull>
   /// Called from parent though GlobalKey state
   /// Do not call this directly, do it through the webview provider to ensure that the tab is also updated
   Future<void> cancelChainingBrowser() async {
-    final html = await webViewController!.getHtml();
+    final html = await PerfTrace.getHtml(_tabUid, webViewController);
     final dom.Document document = parse(html);
     _pageTitle = await _getPageTitle(document);
     // Reports page title so that tab names are updated immediately

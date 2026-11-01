@@ -7,6 +7,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart';
 import 'package:http/http.dart' as http;
+import 'package:torn_pda/utils/perf/perf_trace.dart';
 import 'package:torn_pda/main.dart';
 import 'package:torn_pda/models/items_model.dart';
 import 'package:torn_pda/models/travel/foreign_stock_out.dart';
@@ -55,7 +56,7 @@ class ForeignStocksWebviewHandler {
       int attempts = 0;
       while (attempts < 10) {
         await Future.delayed(const Duration(milliseconds: 200));
-        final html = await webViewController?.getHtml();
+        final html = await PerfTrace.getHtml(null, webViewController);
         if (html != null) {
           document = parse(html);
           abroad = document.querySelectorAll(".travel-home, .travel-home-header-button");
@@ -102,7 +103,7 @@ class ForeignStocksWebviewHandler {
       int attempts = 0;
       while (attempts < 10) {
         await Future.delayed(const Duration(milliseconds: 250));
-        final html = await webViewController?.getHtml();
+        final html = await PerfTrace.getHtml(null, webViewController);
         if (html != null) {
           document = parse(html);
           elements.clear();
