@@ -3,6 +3,7 @@
 // ignore: depend_on_referenced_packages
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:html/parser.dart';
+import 'package:torn_pda/utils/perf/perf_trace.dart';
 
 class WebViewUtils {
   /// Checks for a specific element by [selector] in the HTML from [webViewController]
@@ -29,7 +30,7 @@ class WebViewUtils {
     for (int attempt = 0; attempt < attempts; attempt++) {
       await Future.delayed(Duration(seconds: intervalSeconds));
 
-      final html = await webViewController.getHtml();
+      final html = await PerfTrace.getHtml(null, webViewController);
       final document = parse(html);
       final elements = document.querySelectorAll(selector);
 

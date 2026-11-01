@@ -26,7 +26,7 @@ Read this section before you use any number in this report.
 
 - Nobody ran the app for this report. No Android device was available. Every count comes from reading the code. Every millisecond figure is an estimate.
 - The tools in `tools/perf/` and `lib/utils/perf/` replace the estimates with numbers. `docs/perf/measurement.md` tells you how to use them. Each finding names the metric that proves or disproves it.
-- The analysis covers upstream `origin/develop` at `fe76815d`. Line numbers are for the branch `perf/analysis` at commit `549025d1`. That branch adds the measurement hooks, which move most lines in `webview_full.dart` down by about 11.
+- The analysis covers upstream `origin/develop` at `fe76815d`. Line numbers are for the branch `perf/analysis` at commit `5b467276`. Later commits on the branch do not move lines in `webview_full.dart` or `travel_handler.dart`. That branch adds the measurement hooks, which move most lines in `webview_full.dart` down by about 11, and lines in `travel_handler.dart` down by 1.
 - The plugin is the Manuito83 fork of `flutter_inappwebview` at `765d75b6`, as pinned in `pubspec.yaml`. Engine statements refer to the Flutter 3.47.9 source.
 - Two adversarial reviews tested the first version of this report against the code. This version includes their corrections.
 - "Verified" means that the code path was read and found to work as described. "Suspected" means that the mechanism is clear but the size of the cost is not known.
@@ -70,7 +70,7 @@ Each `getHtml()` costs more than one copy of the page:
 - Then it evaluates `outerHTML`, which blocks the page's own main thread while it serializes the DOM.
 - If `outerHTML` returns empty, it downloads the page again over HTTP, without cookies.
 
-After the loop, the function calls `onTravelStatusChanged(false)`, which is one more `setState`. So each page load causes 20 round trips, 10 DOM serializations and 10 Dart parses in the 2 seconds after load. You often tap the next link in those 2 seconds. The abroad stock check in the same file (`travel_handler.dart:103`) has a second loop of the same type.
+After the loop, the function calls `onTravelStatusChanged(false)`, which is one more `setState`. So each page load causes 20 round trips, 10 DOM serializations and 10 Dart parses in the 2 seconds after load. You often tap the next link in those 2 seconds. The abroad stock check in the same file (`travel_handler.dart:104`) has a second loop of the same type.
 
 Fix: query `.travel-home` in the page, with a short-lived `MutationObserver` and a timeout, and post the result once. The element can appear late, so a single query is not enough. Run this only where travel is possible. The page data layer (below) does this by design.
 
@@ -82,7 +82,7 @@ The inventory in `docs/perf/page-data-inventory.md` lists about 75 places where 
 
 | Method | Count |
 |---|---|
-| `getHtml()` and a Dart `package:html` parse | 19 sites, 6 of them with retry loops of 5 to 30 attempts |
+| `getHtml()` and a Dart `package:html` parse | 19 reads at 25 call sites, 6 of them with retry loops of 5 to 30 attempts |
 | `evaluateJavascript` calls whose result Dart uses | 8 |
 | Injected JavaScript that reads, polls or observes the DOM | 24 (9 `MutationObserver`s, about 14 `setInterval` loops) |
 | Injected JavaScript that pushes page data to Dart | 10 handlers |
