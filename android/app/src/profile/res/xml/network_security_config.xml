@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Profile builds only. This file replaces src/main/res/xml/network_security_config.xml in
+     profile builds, which are not debuggable, so the debug-overrides block there does not apply.
+     It trusts user-installed CAs, so that speed tests can use the mitmproxy CA from tools/replay.
+     Keep the domain-config the same as in the main file. -->
+<network-security-config>
+    <base-config>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">torn.com</domain>
+        <!-- 10.0.2.2 localhost for the emulator (cloud functions tests using http)-->
+        <domain includeSubdomains="true">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>
