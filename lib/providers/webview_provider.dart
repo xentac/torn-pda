@@ -15,6 +15,7 @@ import 'package:get/get.dart';
 import 'package:flutter_material_design_icons/flutter_material_design_icons.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:torn_pda/utils/perf/perf_trace.dart';
 import 'package:torn_pda/main.dart';
 import 'package:torn_pda/models/tabsave_model.dart';
 import 'package:torn_pda/providers/periodic_execution_controller.dart';
@@ -889,6 +890,7 @@ class WebViewProvider extends ChangeNotifier {
 
   @override
   void notifyListeners() {
+    if (PerfTrace.enabled) PerfTrace.countGlobal('WebViewProvider.notify');
     final bool track = splitBrowsersActive;
     if (track || _onScreenTracked) {
       for (final tab in _tabList) {

@@ -32,6 +32,7 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:toastification/toastification.dart';
 
 // Project imports:
+import 'package:torn_pda/utils/perf/perf_trace.dart';
 import 'package:torn_pda/drawer.dart';
 import 'package:torn_pda/firebase_options.dart';
 import 'package:torn_pda/providers/api/api_caller.dart';
@@ -236,6 +237,7 @@ Future<void> main() async {
   await _initializePlatformPlugins();
   await _initializeAudioAndConnectivity();
 
+  PerfTrace.install();
   runApp(
     MultiProvider(
       providers: [
