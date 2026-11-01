@@ -65,31 +65,44 @@ Rules:
    `10.0.2.2` is the host computer as the emulator sees it. On a real phone,
    use the IP address of the computer.
 
+   For speed tests, build in profile mode with the same flag. Profile builds
+   trust user certificates through
+   `android/app/src/profile/res/xml/network_security_config.xml`. Release
+   builds do not trust them.
+
 ## Capture
 
-1. Start the proxy. The label goes into the file name.
+1. Clear the app data, and enter your real API key during the capture:
+
+   ```sh
+   adb shell pm clear com.manuito.tornpda
+   ```
+
+   A replay starts from a cleared app too. PDA checks a new key with API
+   calls. The replay can answer these calls only when the capture has them.
+2. Start the proxy. The label goes into the file name.
 
    ```sh
    tools/replay/capture.sh trades
    ```
 
-2. Send the emulator's WebView and Android traffic to the proxy:
+3. Send the emulator's WebView and Android traffic to the proxy:
 
    ```sh
    adb shell settings put global http_proxy 10.0.2.2:8080
    ```
 
-3. Play by hand. To label a moment, open
+4. Play by hand. To label a moment, open
    `https://www.torn.com/pda-mark/<label>` in the PDA browser, for example
    `https://www.torn.com/pda-mark/trade-open`. The proxy answers it
    locally, and the label goes into the manifest with its time.
-4. Stop the proxy with Ctrl+C. Turn the device proxy off:
+5. Stop the proxy with Ctrl+C. Turn the device proxy off:
 
    ```sh
    adb shell settings put global http_proxy :0
    ```
 
-5. Read the manifest (`<recording>.mitm.json`). Its `hosts` list shows the
+6. Read the manifest (`<recording>.mitm.json`). Its `hosts` list shows the
    hosts that were seen but not saved. To save more hosts in later
    captures, change `PDA_SAVE` in `common.sh`.
 
