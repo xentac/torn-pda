@@ -7,11 +7,13 @@ Needs Python with mitmproxy and pytest (see README.md).
 
 import datetime
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
 import pytest
-from mitmproxy import certs, http, io
+from mitmproxy import certs, flowfilter, http, io
 from mitmproxy.addons import save
 from mitmproxy.connection import Server
 from mitmproxy.proxy.server_hooks import ServerConnectionHookData
@@ -268,6 +270,24 @@ def test_replay_backdates_certificates(replay):
     assert entry.cert.notafter > datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=150)
 
 
+def default_save_filter() -> str:
+    out = subprocess.run(
+        ["bash", "-c", f'. "{Path(__file__).parent / "common.sh"}"; printf %s "$PDA_SAVE"'],
+        capture_output=True,
+        text=True,
+        check=True,
+        env={"HOME": "/nonexistent", "PATH": os.environ.get("PATH", "")},
+    )
+    return out.stdout
+
+
+def test_capture_default_filter_saves_torn_hosts_only():
+    f = flowfilter.parse(default_save_filter())
+    hosts = {"www.torn.com": True, "api.torn.com": True, "nottorn.com": False, "torn.com.example": False}
+    for host, saved in hosts.items():
+        assert bool(f(flow("GET", f"https://{host}/x"))) is saved, host
+
+
 # Capture ----------------------------------------------------------------------
 
 
@@ -275,7 +295,7 @@ async def test_capture_marks_are_answered_locally(tmp_path):
     addon = pda_capture.PdaCapture()
     manifest = tmp_path / "rec.json"
     with taddons.context(save.Save(), addon) as tctx:
-        tctx.configure(addon, pda_manifest=str(manifest), save_stream_filter=r"~d torn\.com")
+        tctx.configure(addon, pda_manifest=str(manifest), save_stream_filter=default_save_filter())
         f = tflow.tflow(req=http.Request.make("GET", "https://www.torn.com/pda-mark/trade%20open"))
         addon.request(f)
         assert f.response.status_code == 204
