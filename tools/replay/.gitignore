@@ -1,0 +1,7 @@
+# Recordings and the files that map real values hold personal data. Keep them out of git.
+*.mitm
+*.mitm.json
+*.misses.jsonl
+identity*.json
+idmap*.json
+__pycache__/
