@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PDA Perf Probe
 // @namespace    torn-pda-perf
-// @version      0.1.0
+// @version      0.2.0
 // @description  Records page-load, interaction and main-thread metrics on torn.com. Runs unchanged in Torn PDA and in Tampermonkey/Violentmonkey so the two can be compared.
 // @match        https://www.torn.com/*
 // @run-at       document-start
@@ -24,17 +24,26 @@
 // - longTasks: count and total duration of main-thread tasks over 50 ms (Chromium only).
 // - frames: rAF gaps over 50 ms during the first 10 s and during scrolls (all engines).
 // - interactions: Event Timing entries (pointer/key) with duration >= 16 ms. Max and p75.
+// - tap: time from the last tap or click on the previous page to this document's navigation
+//   start (tapToNavStart), first byte (tapToTtfb) and DOMContentLoaded (tapToDcl). This includes
+//   any delay before the request starts, for example a native app that holds the navigation.
 // - bridge: calls to window.flutter_inappwebview.callHandler, by handler name, with
-//   round-trip times (PDA only).
+//   round-trip times and the time of the first call (PDA only). The plugin's own
+//   onLoadResource messages show up here as byName.onLoadResource.
+// - segments: for each hash or history route change, long tasks, bridge calls and frame gaps
+//   in the 3 s after the change (single-page parts of Torn).
 // - hooks: MutationObservers, setInterval timers and their callback time, split into
 //   "page" (stack contains a page-origin URL) and "injected" (everything else).
 //   Set HOOKS = false to remove this instrumentation if you suspect its own overhead.
+//   In PDA, code registered before this script (the plugin bridge, the PDA handler bundle)
+//   runs first, so observers it creates at document start are not counted.
 (function () {
   "use strict";
   if (window.__pdaPerfProbe) return;
   const HOOKS = true;
   const STORE_KEY = "pdaPerfProbe.v1";
-  const MAX_RECORDS = 200;
+  const MAX_RECORDS = 50;
+  const TAP_KEY = "pdaPerfProbe.lastTap";
   const t0 = performance.now();
 
   const isPDA = () => typeof window.flutter_inappwebview !== "undefined" || /TornPDA|com\.manuito/i.test(navigator.userAgent);
@@ -44,7 +53,8 @@
     url: location.href,
     path: location.pathname + location.search.replace(/([?&](rfcv|_)=)[^&]*/g, "$1x"),
     ts: Date.now(),
-    ua: navigator.userAgent,
+    timeOrigin: Math.round(performance.timeOrigin),
+    ua: navigator.userAgent.replace(/^Mozilla\/5\.0 /, "").slice(0, 160),
     env: null,
     probeStart: Math.round(t0),
     nav: {},
@@ -53,7 +63,9 @@
     longTasks: { count: 0, total: 0, max: 0 },
     frames: { gaps50: 0, gaps100: 0, maxGap: 0, scrollFrames: 0, scrollGaps50: 0 },
     interactions: { count: 0, max: 0, p75: 0, slow: [] },
-    bridge: { calls: 0, byName: {}, pendingAtReport: 0 },
+    tap: null,
+    bridge: { calls: 0, firstAt: null, byName: {}, pendingAtReport: 0 },
+    segments: [],
     hooks: { moPage: 0, moInjected: 0, moCbMsPage: 0, moCbMsInjected: 0, moCbCount: 0, ivPage: 0, ivInjected: 0, ivCbMsPage: 0, ivCbMsInjected: 0 },
     spaNavs: 0,
   };
@@ -63,16 +75,17 @@
   // A stack frame with a URL on the page origin (a torn.com script file or an inline script of
   // the document) means the page created the hook. Code from evaluateJavascript, WKUserScript
   // or a Tampermonkey sandbox shows up without a page-origin URL.
-  const fromPage = () => {
-    const s = new Error().stack || "";
-    const lines = s.split("\n").slice(3, 9).join("\n");
-    return lines.indexOf(location.origin + "/") !== -1;
+  // The probe's own frames contain "pdaProbe" (named functions below). The first frame after
+  // them is the code that created the hook. This works for Chromium and Gecko stack formats.
+  const fromPage = function pdaProbeFromPage() {
+    const lines = (new Error().stack || "").split("\n").filter((l) => l.trim() && !/^Error/.test(l) && l.indexOf("pdaProbe") === -1);
+    return !!lines[0] && lines[0].indexOf(location.origin + "/") !== -1;
   };
 
   if (HOOKS) {
     const NativeMO = window.MutationObserver;
     if (NativeMO) {
-      window.MutationObserver = function (cb) {
+      window.MutationObserver = function pdaProbeMO(cb) {
         const page = fromPage();
         page ? rec.hooks.moPage++ : rec.hooks.moInjected++;
         const wrapped = function () {
@@ -88,9 +101,10 @@
         return new NativeMO(wrapped);
       };
       window.MutationObserver.prototype = NativeMO.prototype;
+      if (window.WebKitMutationObserver) window.WebKitMutationObserver = window.MutationObserver;
     }
     const nativeSI = window.setInterval;
-    window.setInterval = function (fn, ms) {
+    window.setInterval = function pdaProbeSI(fn, ms) {
       const page = fromPage();
       page ? rec.hooks.ivPage++ : rec.hooks.ivInjected++;
       if (typeof fn !== "function") return nativeSI.apply(window, arguments);
@@ -122,6 +136,8 @@
     const orig = b.callHandler.bind(b);
     b.callHandler = function (name) {
       rec.bridge.calls++;
+      if (rec.bridge.firstAt === null) rec.bridge.firstAt = Math.round(performance.now());
+      if (seg) seg.bridge++;
       const e = (rec.bridge.byName[name] = rec.bridge.byName[name] || { n: 0, totalMs: 0, maxMs: 0 });
       e.n++;
       const s = performance.now();
@@ -145,6 +161,26 @@
     if (!bridgeWrapped && ++bridgePolls < 100) setTimeout(poll, 20);
   }, 0);
 
+  // ---------- tap to navigation ----------
+  // The previous page stores the time of the last tap. A tap older than 15 s is ignored.
+  let seg = null;
+  try {
+    const last = Number(sessionStorage.getItem(TAP_KEY));
+    sessionStorage.removeItem(TAP_KEY);
+    if (last && performance.timeOrigin - last < 15000 && performance.timeOrigin >= last) rec.tap = { tapToNavStart: Math.round(performance.timeOrigin - last) };
+  } catch (_) {
+    /* sessionStorage blocked */
+  }
+  const storeTap = () => {
+    try {
+      sessionStorage.setItem(TAP_KEY, String(Date.now()));
+    } catch (_) {
+      /* sessionStorage blocked */
+    }
+  };
+  addEventListener("pointerdown", storeTap, { capture: true, passive: true });
+  addEventListener("click", storeTap, { capture: true, passive: true });
+
   // ---------- performance observers ----------
   const observe = (type, fn) => {
     try {
@@ -157,6 +193,7 @@
   observe("largest-contentful-paint", (e) => (rec.paint.lcp = Math.round(e.startTime)));
   observe("longtask", (e) => {
     rec.longTasks.count++;
+    if (seg && e.startTime >= seg.at) (seg.lt++, (seg.ltMs += e.duration));
     rec.longTasks.total += e.duration;
     if (e.duration > rec.longTasks.max) rec.longTasks.max = e.duration;
   });
@@ -185,6 +222,7 @@
     const gap = now - last;
     last = now;
     const inScroll = now - scrolling < 300;
+    if (seg && now - seg.at < 3000 && gap > 50) seg.gaps50++;
     if (inScroll) {
       rec.frames.scrollFrames++;
       if (gap > 50) rec.frames.scrollGaps50++;
@@ -199,12 +237,19 @@
   requestAnimationFrame(frame);
 
   // ---------- SPA navigations (Torn uses hash routes on several pages) ----------
-  addEventListener("hashchange", () => rec.spaNavs++);
+  const spaNav = (kind) => {
+    rec.spaNavs++;
+    if (rec.segments.length >= 20) return;
+    seg = { kind, at: Math.round(performance.now()), path: location.pathname + location.hash.slice(0, 40), lt: 0, ltMs: 0, bridge: 0, gaps50: 0 };
+    rec.segments.push(seg);
+  };
+  addEventListener("hashchange", () => spaNav("hash"));
   ["pushState", "replaceState"].forEach((m) => {
     const o = history[m];
-    history[m] = function () {
-      rec.spaNavs++;
-      return o.apply(this, arguments);
+    history[m] = function pdaProbeHistory() {
+      const r = o.apply(this, arguments);
+      if (m === "pushState") spaNav("push");
+      return r;
     };
   });
 
@@ -225,6 +270,10 @@
         load: n.loadEventEnd,
         docBytes: n.transferSize,
       });
+      if (rec.tap) {
+        rec.tap.tapToTtfb = Math.round(rec.tap.tapToNavStart + n.responseStart);
+        rec.tap.tapToDcl = Math.round(rec.tap.tapToNavStart + n.domContentLoadedEventEnd);
+      }
     }
     const res = performance.getEntriesByType("resource");
     let bytes = 0;
@@ -244,6 +293,7 @@
     rec.longTasks.max = Math.round(rec.longTasks.max);
     round(rec.hooks);
     Object.values(rec.bridge.byName).forEach(round);
+    rec.segments.forEach((x) => (x.ltMs = Math.round(x.ltMs)));
     rec.env = rec.env || (isPDA() ? "pda" : typeof GM_info !== "undefined" ? "tm" : "browser");
     rec.domNodes = document.getElementsByTagName("*").length;
     rec.styleTags = document.querySelectorAll("style").length;
@@ -283,7 +333,10 @@
     return r;
   };
 
-  addEventListener("load", () => setTimeout(() => (report(false), badge()), 10000));
+  const schedule = () => setTimeout(() => (report(false), badge()), 10000);
+  // The probe can be injected after load (for example by a late re-injection). Report anyway.
+  if (document.readyState === "complete") schedule();
+  else addEventListener("load", schedule);
   addEventListener("pagehide", () => report(true));
 
   // ---------- UI ----------

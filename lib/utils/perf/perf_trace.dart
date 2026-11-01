@@ -2,18 +2,25 @@
 // --dart-define=PDA_PERF=true (all entry points check the const [PerfTrace.enabled] first,
 // so release builds without the flag carry no cost).
 //
-// What it records, per tab and per navigation (from onLoadStart to the next onLoadStart):
-// - how many times each InAppWebView callback fired and the Dart time spent inside it
-//   (time until the returned Future completes, so awaited platform calls are included)
-// - named counters (setState on WebViewFull, notifyListeners on providers, etc.)
-// - Flutter frame timings (UI build and raster) while the browser is in the foreground
+// What it records, per tab and per document (from onLoadStart to the next onLoadStart):
+// - how many times each InAppWebView callback fired, its synchronous Dart time, and the wall
+//   time until its Future completed (wall time includes awaited platform calls and delays)
+// - named counters (setState on WebViewFull, getHtml calls, provider notifies, etc.)
+// - main-isolate event-loop lag: a 16 ms timer measures how late it fires. This catches
+//   work between frames (channel handlers, HTML parsing, storage) that frame timings miss
+// - Flutter frame timings (UI build and raster)
 //
-// A summary line is logged with the prefix [PDA-PERF-DART] at onLoadStop + 10 s, and the
-// last 100 summaries are kept in memory ([PerfTrace.history]) for the dev tools.
+// Callbacks that fire before onLoadStart for the same navigation (shouldOverrideUrlLoading)
+// go to a per-tab pending record, which the next navStart adopts.
 //
-// Platform-channel traffic is not counted here. Build with the flag and Flutter's own
-// `debugProfilePlatformChannels` is turned on as well (see [PerfTrace.install]), which logs
-// per-channel and per-method message counts and bytes.
+// Lag and frame numbers are process-wide. They are written only to the record of the tab
+// that started the most recent navigation, so do not add them up across tabs.
+//
+// A summary line is logged with the prefix [PDA-PERF-DART] at onLoadStop + 10 s.
+//
+// Platform-channel traffic is not counted here. Build with the flag in profile mode and
+// Flutter's own `debugProfilePlatformChannels` is turned on as well (see [PerfTrace.install]),
+// which logs per-channel and per-method message counts and bytes.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
@@ -21,13 +28,16 @@ import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 class PerfTrace {
   static const bool enabled = bool.fromEnvironment('PDA_PERF');
 
   static final Map<String, _NavTrace> _byTab = {};
-  static final List<Map<String, dynamic>> history = [];
+  static final Map<String, _NavTrace> _pending = {};
   static final _FrameStats _frames = _FrameStats();
+  static final _LagStats _lag = _LagStats();
+  static String? _lastTab;
   static bool _installed = false;
 
   /// Call once at startup (main.dart). No-op without the flag.
@@ -36,14 +46,20 @@ class PerfTrace {
     _installed = true;
     if (!kReleaseMode) debugProfilePlatformChannels = true;
     SchedulerBinding.instance.addTimingsCallback(_frames.add);
+    _lag.start();
   }
 
-  /// A new top-level navigation began in [tab]. Flushes the previous one if not yet reported.
+  /// A new document began loading in [tab]. Flushes the previous record if not yet reported.
   static void navStart(String tab, String url) {
     if (!enabled) return;
+    if (url.startsWith('about:')) return;
     final prev = _byTab[tab];
     if (prev != null && !prev.reported) _report(tab, prev, reason: 'next-nav');
-    _byTab[tab] = _NavTrace(url, _frames.snapshot());
+    final t = _NavTrace(url, _frames.snapshot(), _lag.snapshot());
+    final pending = _pending.remove(tab);
+    if (pending != null) t.adopt(pending);
+    _byTab[tab] = t;
+    _lastTab = tab;
   }
 
   /// The page finished loading. Reports 10 s later so late callbacks are included.
@@ -60,58 +76,68 @@ class PerfTrace {
   static void count(String tab, String name, [int n = 1]) {
     if (!enabled) return;
     final t = _byTab[tab];
-    if (t == null) return;
+    if (t == null || t.reported) return;
     t.counts[name] = (t.counts[name] ?? 0) + n;
   }
 
-  /// Counter that is not tied to a tab (providers, controllers).
+  /// Counter that is not tied to a tab (providers, controllers, handlers without a tab id).
+  /// Goes to the tab that started the most recent navigation.
   static void countGlobal(String name, [int n = 1]) {
-    if (!enabled) return;
-    for (final t in _byTab.values) {
-      if (!t.reported) t.counts[name] = (t.counts[name] ?? 0) + n;
-    }
+    if (!enabled || _lastTab == null) return;
+    count(_lastTab!, name, n);
+  }
+
+  /// Counts and forwards a getHtml call. Use in place of `controller.getHtml()`.
+  static Future<String?> getHtml(String? tab, InAppWebViewController? c) {
+    if (enabled) tab == null ? countGlobal('getHtml') : count(tab, 'getHtml');
+    return c?.getHtml() ?? Future.value(null);
   }
 
   /// Wraps a callback body. Measures synchronous time and time until the Future completes.
-  static Future<T> cb<T>(String tab, String name, Future<T> Function() body) {
+  /// Set [preNav] for callbacks that fire before onLoadStart of the navigation they belong to.
+  static Future<T> cb<T>(String tab, String name, Future<T> Function() body, {bool preNav = false}) {
     if (!enabled) return body();
-    final t = _byTab[tab];
     final sw = Stopwatch()..start();
     final Future<T> f = body();
     final syncUs = sw.elapsedMicroseconds;
-    return f.whenComplete(() {
-      if (t == null) return;
-      final s = t.cbs.putIfAbsent(name, () => _CbStat());
-      s.n++;
-      s.syncUs += syncUs;
-      final us = sw.elapsedMicroseconds;
-      s.totalUs += us;
-      if (us > s.maxUs) s.maxUs = us;
-    });
+    return f.whenComplete(() => _record(tab, name, preNav, syncUs, sw.elapsedMicroseconds));
   }
 
   /// Synchronous variant of [cb].
   static T cbSync<T>(String tab, String name, T Function() body) {
     if (!enabled) return body();
-    final t = _byTab[tab];
     final sw = Stopwatch()..start();
     try {
       return body();
     } finally {
-      if (t != null) {
-        final s = t.cbs.putIfAbsent(name, () => _CbStat());
-        final us = sw.elapsedMicroseconds;
-        s.n++;
-        s.syncUs += us;
-        s.totalUs += us;
-        if (us > s.maxUs) s.maxUs = us;
+      final us = sw.elapsedMicroseconds;
+      _record(tab, name, false, us, us);
+    }
+  }
+
+  static void _record(String tab, String name, bool preNav, int syncUs, int totalUs) {
+    _NavTrace? t;
+    if (preNav) {
+      t = _pending.putIfAbsent(tab, () => _NavTrace('(pending)', const [], const []));
+    } else {
+      t = _byTab[tab];
+      if (t == null) return;
+      if (t.reported) {
+        // Arrived after the 10 s report. Kept in the log so it is not silently lost.
+        developer.log('[PDA-PERF-DART-LATE] $tab $name ${(totalUs / 1000).toStringAsFixed(1)}ms', name: 'PERF');
+        return;
       }
     }
+    final s = t.cbs.putIfAbsent(name, () => _CbStat());
+    s.n++;
+    s.syncUs += syncUs;
+    s.totalUs += totalUs;
+    if (totalUs > s.maxUs) s.maxUs = totalUs;
   }
 
   static void _report(String tab, _NavTrace t, {required String reason}) {
     t.reported = true;
-    final f = _frames.since(t.frames0);
+    final processWide = identical(_byTab[_lastTab], t);
     final m = <String, dynamic>{
       'tab': tab,
       'url': t.url,
@@ -122,15 +148,14 @@ class PerfTrace {
           e.key: {
             'n': e.value.n,
             'syncMs': (e.value.syncUs / 1000).toStringAsFixed(1),
-            'totalMs': (e.value.totalUs / 1000).toStringAsFixed(1),
-            'maxMs': (e.value.maxUs / 1000).toStringAsFixed(1),
+            'wallMs': (e.value.totalUs / 1000).toStringAsFixed(1),
+            'maxWallMs': (e.value.maxUs / 1000).toStringAsFixed(1),
           },
       },
       'counts': t.counts,
-      'frames': f,
+      if (processWide) 'frames': _frames.since(t.frames0),
+      if (processWide) 'lag': _lag.since(t.lag0),
     };
-    history.add(m);
-    if (history.length > 100) history.removeAt(0);
     developer.log('[PDA-PERF-DART] ${jsonEncode(m)}', name: 'PERF');
   }
 }
@@ -143,14 +168,61 @@ class _CbStat {
 }
 
 class _NavTrace {
-  _NavTrace(this.url, this.frames0);
+  _NavTrace(this.url, this.frames0, this.lag0);
   final String url;
   final List<int> frames0;
+  final List<int> lag0;
   final Stopwatch sw = Stopwatch()..start();
   final Map<String, _CbStat> cbs = {};
   final Map<String, int> counts = {};
   int? stopAt;
   bool reported = false;
+
+  void adopt(_NavTrace other) {
+    for (final e in other.cbs.entries) {
+      cbs['${e.key}(preNav)'] = e.value;
+    }
+    other.counts.forEach((k, v) => counts[k] = (counts[k] ?? 0) + v);
+  }
+}
+
+class _LagStats {
+  // Cumulative counters, read as differences per navigation.
+  static const _periodUs = 16000;
+  int samples = 0;
+  int over16 = 0;
+  int over50 = 0;
+  int over100 = 0;
+  int lagUsTotal = 0;
+  int lagUsMax = 0;
+
+  void start() {
+    final sw = Stopwatch()..start();
+    var last = 0;
+    Timer.periodic(const Duration(microseconds: _periodUs), (_) {
+      final now = sw.elapsedMicroseconds;
+      final lag = now - last - _periodUs;
+      last = now;
+      samples++;
+      if (lag <= 0) return;
+      lagUsTotal += lag;
+      if (lag > lagUsMax) lagUsMax = lag;
+      if (lag > 16000) over16++;
+      if (lag > 50000) over50++;
+      if (lag > 100000) over100++;
+    });
+  }
+
+  List<int> snapshot() => [samples, over16, over50, over100, lagUsTotal];
+
+  Map<String, dynamic> since(List<int> s) => {
+    'samples': samples - s[0],
+    'over16': over16 - s[1],
+    'over50': over50 - s[2],
+    'over100': over100 - s[3],
+    'totalMs': ((lagUsTotal - s[4]) / 1000).toStringAsFixed(1),
+    'maxMsEver': (lagUsMax / 1000).toStringAsFixed(1),
+  };
 }
 
 class _FrameStats {
