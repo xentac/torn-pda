@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 // ignore: depend_on_referenced_packages
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:provider/provider.dart';
+import 'package:torn_pda/utils/perf/perf_trace.dart';
 import 'package:torn_pda/providers/webview_provider.dart';
 import 'package:torn_pda/config/webview_config.dart';
 import 'package:torn_pda/providers/settings_provider.dart';
@@ -275,14 +276,14 @@ class WebViewSimpleDialogState extends State<WebViewSimpleDialog> {
               }
             }
 
-            webView.getHtml().then(
+            PerfTrace.getHtml(null, webView).then(
               (value) async {
                 if (value != null) {
                   fireCallbackOnCaptchaSuccess(value);
                   return;
                 }
                 await Future.delayed(const Duration(milliseconds: 500));
-                webView.getHtml().then((value) {
+                PerfTrace.getHtml(null, webView).then((value) {
                   if (value != null) {
                     fireCallbackOnCaptchaSuccess(value);
                     return;
