@@ -88,6 +88,7 @@ import 'package:torn_pda/utils/number_formatter.dart';
 import 'package:torn_pda/utils/firebase_firestore.dart';
 import 'package:torn_pda/utils/shared_prefs.dart';
 import 'package:torn_pda/utils/user_helper.dart';
+import 'package:torn_pda/utils/perf/perf_trace.dart';
 import 'package:torn_pda/utils/webview/webview_handlers.dart';
 import 'package:torn_pda/utils/webview/webview_utils.dart';
 import 'package:torn_pda/utils/webview_dialog_helper.dart';
@@ -505,6 +506,12 @@ class WebViewFullState extends State<WebViewFull>
 
   @override
   bool get wantKeepAlive => true;
+
+  @override
+  void setState(VoidCallback fn) {
+    if (PerfTrace.enabled) PerfTrace.count(_tabUid, 'setState');
+    super.setState(fn);
+  }
 
   @override
   void initState() {
@@ -1552,7 +1559,7 @@ class WebViewFullState extends State<WebViewFull>
 
             publishTabState();
           },
-          shouldOverrideUrlLoading: (c, action) async {
+          shouldOverrideUrlLoading: (c, action) => PerfTrace.cb(_tabUid, 'shouldOverrideUrlLoading', () async {
             final incomingUrl = action.request.url.toString();
 
             // Handle external schemes
@@ -1662,8 +1669,8 @@ class WebViewFullState extends State<WebViewFull>
             }
 
             return NavigationActionPolicy.ALLOW;
-          },
-          onCreateWindow: (c, request) async {
+          }),
+          onCreateWindow: (c, request) => PerfTrace.cb(_tabUid, 'onCreateWindow', () async {
             if (!mounted) return true;
             final Uri? requestedUri = request.request.url;
             // A window opened without a URL would otherwise become the literal string "null"
@@ -1702,13 +1709,15 @@ class WebViewFullState extends State<WebViewFull>
               return true;
             }
             return true;
-          },
+          }),
           onCloseWindow: (controller) async {
             await Future.delayed(const Duration(seconds: 2));
             final int closedIndex = _webViewProvider.tabList.indexWhere((t) => t.id == _tabUid);
             if (closedIndex > 0) _webViewProvider.removeTab(position: closedIndex);
           },
-          onLoadStart: (c, uri) async {
+          onLoadStart: (c, uri) {
+            PerfTrace.navStart(_tabUid, uri.toString());
+            PerfTrace.cb(_tabUid, 'onLoadStart', () async {
             log("🌐 onLoadStart: $uri", name: "WEBVIEW FULL");
             if (_markInitialLoadStarted()) return;
             _loadStartedAt = DateTime.now();
@@ -1796,8 +1805,9 @@ class WebViewFullState extends State<WebViewFull>
             if (Platform.isAndroid) {
               evaluateGreasyForMockVM(uri, c);
             }
+          });
           },
-          onProgressChanged: (c, progress) async {
+          onProgressChanged: (c, progress) => PerfTrace.cb(_tabUid, 'onProgressChanged', () async {
             if (!mounted) return;
             if (_isParked) return;
 
@@ -1845,7 +1855,7 @@ class WebViewFullState extends State<WebViewFull>
               // Prevents issue if webView is closed too soon, in between the 'mounted' check and the rest of
               // the checks performed in this method
             }
-          },
+          }),
           onScrollChanged: (c, x, y) {
             // Android only: iOS reports these divided by contentScaleFactor, while getScrollX/Y
             // and scrollTo use raw points
@@ -1856,8 +1866,9 @@ class WebViewFullState extends State<WebViewFull>
             _scrollX = x;
             _scrollY = y;
           },
-          onLoadStop: (c, uri) async {
+          onLoadStop: (c, uri) => PerfTrace.cb(_tabUid, 'onLoadStop', () async {
             log("🏁 onLoadStop: $uri", name: 'WEBVIEW FULL');
+            PerfTrace.navStop(_tabUid);
             _markInitialLoadStarted();
             if (!mounted) return;
             _setReloadInProgress(false);
@@ -2066,8 +2077,8 @@ class WebViewFullState extends State<WebViewFull>
             await _restoreNativeWebViewFocus();
 
             //log("Stop @ ${DateTime.now().millisecondsSinceEpoch - _loadTimeMill} ms");
-          },
-          onUpdateVisitedHistory: (c, uri, androidReload) async {
+          }),
+          onUpdateVisitedHistory: (c, uri, androidReload) => PerfTrace.cb(_tabUid, 'onUpdateVisitedHistory', () async {
             if (!mounted) return;
             if (_isParkingBlank(uri)) return;
             if (_isParked && uri != null) _isParked = false;
@@ -2082,8 +2093,8 @@ class WebViewFullState extends State<WebViewFull>
             _reportUrlVisit(uri);
             _assessOCnnb(uri.toString()); // Using a more direct call for OCnnb
             return;
-          },
-          onLoadResource: (c, resource) async {
+          }),
+          onLoadResource: (c, resource) => PerfTrace.cb(_tabUid, 'onLoadResource', () async {
             if (!mounted) return;
 
             try {
@@ -2244,8 +2255,8 @@ class WebViewFullState extends State<WebViewFull>
             }
 
             return;
-          },
-          onConsoleMessage: (controller, consoleMessage) async {
+          }),
+          onConsoleMessage: (controller, consoleMessage) => PerfTrace.cb(_tabUid, 'onConsoleMessage', () async {
             if (consoleMessage.message != "") {
               if (consoleMessage.message.contains("GM already defined")) {
                 log("GM already present, skipping re-injection");
@@ -2268,7 +2279,7 @@ class WebViewFullState extends State<WebViewFull>
                 log("TORN PDA CONSOLE: ${consoleMessage.message}");
               }
             }
-          },
+          }),
           onLongPressHitTestResult: (controller, result) async {
             if (result.extra == null) return;
             await _assessLongPressOptions(result, controller);
