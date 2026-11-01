@@ -324,10 +324,36 @@ Recommendation: before you write code, measure one live tab against the default,
 Upstream `flutter_inappwebview` has had no stable release since 2024. The app depends on the maintainer's fork of a beta version. So a change of plugin is a fair question. There are three options.
 
 1. Stay on the fork. This has the least risk. The costs in findings 1.4, 1.5 and 1.9 come partly from the plugin, and track D patches them in the fork.
-2. Move to the official `webview_flutter`. The Flutter team maintains it, and the app already uses it for a few dialogs. But its Android source (`webview_flutter_android` 4.14.1) shows three problems for PDA. Its navigation callback also cancels and re-issues the load (`setSynchronousReturnValueForShouldOverrideUrlLoading(true)`, then `loadUrl` after Dart answers). It has no API for document-start scripts, which userscripts need. It has no content blockers, window creation or HTTP authentication callbacks. Its default Android mode is Texture Layer Hybrid Composition, so scrolling changes too. PDA uses a wide part of the current plugin: 56 `evaluateJavascript` calls, 26 `getUrl` calls, user scripts, cookies, web storage and pull to refresh. So this move is a large rewrite that removes no cost by itself.
+2. Move to the official `webview_flutter`. The Flutter team maintains it, and the app already uses it for a few dialogs. Its public Dart API lacks some features that PDA uses, but most of them can be added without upstream changes. "Option: move to `webview_flutter`" below gives the details. PDA uses a wide part of the current plugin: 56 `evaluateJavascript` calls, 26 `getUrl` calls, user scripts, cookies, web storage and pull to refresh. So this move is a large rewrite that removes no cost by itself.
 3. A thin engine layer for PDA. On Android, it registers scripts once with `WebViewCompat.addDocumentStartJavaScript`. It uses `WebViewCompat.addWebMessageListener` as the bridge, which is origin-scoped and needs no `@JavascriptInterface`. It decides navigations natively from rules and calls Dart only for exceptions. It sends no per-resource events, and it batches the events that remain. On iOS, it uses `WKUserScript` and a message handler with replies. It can wrap the official plugin: `webview_flutter_android` gives access to the native WebView through `WebViewFlutterAndroidExternalApi`.
 
 Recommendation: do not switch first. The largest costs are in the app, and they stay with any plugin. Write the page data layer and the userscript loader against a narrow internal interface: add a document-start script, a message channel, evaluate, a navigation policy, and lifecycle events. Then a plugin change is one new implementation of that interface. Run the old and new implementations behind a Remote Config flag, and compare them with the replay rig (see "Regression testing") for behavior and speed. This is track W.
+
+### Option: move to `webview_flutter`
+
+This section keeps the move open as an option for track W. It is not a recommendation to migrate. The facts come from the sources of `webview_flutter_android` 4.14.1 and `webview_flutter_wkwebview` 3.27.2.
+
+The public Dart API already covers navigation requests, page start and finish, progress and URL changes. It also covers HTTP errors, HTTP authentication, console messages, JavaScript dialogs and JavaScript channels. Cookies, the user agent, the background color, the scroll position and the file chooser are covered too.
+
+Some features are missing from the Dart API. Both platform packages give a public, supported way to get the native view. On Android, `WebViewFlutterAndroidExternalApi.getWebView(binding, identifier)` returns the `android.webkit.WebView`. Its documentation says that the method changes only with a major version. On iOS, `FWFWebViewFlutterWKWebViewExternalAPI.webView(...)` returns the `WKWebView`. A small companion plugin owned by PDA can use these to add:
+
+- Document-start scripts: `WebViewCompat.addDocumentStartJavaScript` on Android, and a `WKUserScript` at document start on iOS.
+- A faster bridge: `WebViewCompat.addWebMessageListener` on Android, and a `WKScriptMessageHandler` with replies on iOS.
+- A download listener, the renderer priority for hidden tabs, and the layer type.
+
+Navigation can be faster than today. If Dart sets an `onNavigationRequest` callback, the Android plugin cancels and re-issues each load (`setSynchronousReturnValueForShouldOverrideUrlLoading(true)`, then `loadUrl` after Dart answers). Without that callback, `shouldOverrideUrlLoading` returns false. The load then starts at once, and Dart gets only an asynchronous notice. In this design, the document-start script handles the cases that need a decision: external schemes, `target=_blank` links and `window.open`. It sends one message for each of these. Only a locked tab sets `onNavigationRequest` and pays for the round trip. The plugin opens a new window in the same view, so PDA's "open in new tab" behavior also depends on the script.
+
+The plugin owns the Android `WebViewClient`, and the companion plugin cannot change that object. This causes one real gap. The plugin does not implement `onRenderProcessGone`. If the renderer process dies and no client handles the event, Android stops the whole app. PDA has recovery code for this case today, so the move cannot ship without a fix. There are three ways to fix it:
+
+- A wrapper client in the companion plugin. It delegates every method to the plugin's client and adds `onRenderProcessGone`. The plugin replaces its client each time Dart sets a new navigation delegate, so the wrapper must be applied again each time. This is fragile.
+- A fork of only `webview_flutter_android`. Flutter plugins are federated: each platform is a separate package. So PDA can use its own Android package with the official Dart API and iOS package. A patch of one method costs much less to maintain than a fork of `flutter_inappwebview`.
+- A pull request to `flutter/packages` that adds `onRenderProcessGone`. The change is small and useful to other apps, but the review can take months.
+
+If PDA takes this option, it uses the second and third ways together. After the pull request is merged, the fork can go away. On iOS, the native navigation delegate receives `webContentProcessDidTerminate`, but no public Dart setter for it exists. The companion plugin or the same fork must forward it.
+
+Two other gaps do not matter. `shouldInterceptRequest` is not available, but a document-start script is a better way to block the chat bundle (finding 1.9). Synchronous navigation rules in native code are not available, but the script approach above replaces them.
+
+The default Android composition mode of the plugin is Texture Layer Hybrid Composition, which is janky for WebViews. PDA must set `displayWithHybridComposition: true` to keep today's scrolling behavior. Then it can test the other modes (see "Which Android composition mode to use").
 
 ### A different engine or a native browser
 
@@ -364,7 +390,7 @@ These were considered and are not recommended, so that nobody needs to ask again
 | B2. Document-start loader | Register once, match in JavaScript, run end scripts on `DOMContentLoaded`. Then `regexToAllowSyncUrlLoading` for Torn URLs. | B1, R | Script `probeStart` within 50 ms of Tampermonkey. `tap.tapToNavStart` within 50 ms of the control app. |
 | C. Widget isolation | Build `InAppWebView` once. Split the browser chrome into small widgets. Selectors in place of whole-provider listening. `TickerMode` for hidden tabs and the drawer. `GetBuilder` IDs. Settings through `setSettings`. | A1 (progress bar), R | `frames.uiOver16` and `lag.over50` during loads and scrolls. `janky_pct` in `adb-bench.sh`. |
 | D. Plugin fork patches | Filter the `onLoadResource` observer by URL. Skip the content blocker HEAD request (1.9). Send scroll and console events only to a listener. A batch API for scripts. Make `pluginScriptsForMainFrameOnly: true` an option behind Remote Config, because it removes the bridge from iframes and can break scripts there. | None | Platform channel message count per page. `nav.load` with chat hidden. |
-| W. WebView engine interface | A narrow interface for the page data layer and the loader. A second implementation on a thin engine layer. Both behind a Remote Config flag. | P, B2, T | No differences in the behavioral diff. Lower `tap.tapToNavStart` and platform channel message count than the fork. |
+| W. WebView engine interface | A narrow interface for the page data layer and the loader. A second implementation, either a thin engine layer on the fork or `webview_flutter` with a companion plugin (see "Option: move to `webview_flutter`"). Both behind a Remote Config flag. | P, B2, T | No differences in the behavioral diff. Lower `tap.tapToNavStart` and platform channel message count than the fork. |
 | E. API, storage and startup | Share HTTP clients and decode once. Use `Isolate.run` for large JSON. Delay `_saveTabs`. Move large values out of the preferences database. Start services that the first frame does not need later. Test the prewarm unmount. | None | Time from process start to the first `loadEventEnd`. `lag.over50` while idle in the browser. |
 
 ### Regression testing
