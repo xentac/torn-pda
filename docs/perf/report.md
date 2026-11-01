@@ -319,13 +319,23 @@ All WebViews of the app share one renderer process. So the polling, chat and use
 
 Recommendation: before you write code, measure one live tab against the default, and parking on against off. Also set `rendererPriorityPolicy` to `WAIVED` for hidden tabs.
 
+### The WebView plugin
+
+Upstream `flutter_inappwebview` has had no stable release since 2024. The app depends on the maintainer's fork of a beta version. So a change of plugin is a fair question. There are three options.
+
+1. Stay on the fork. This has the least risk. The costs in findings 1.4, 1.5 and 1.9 come partly from the plugin, and track D patches them in the fork.
+2. Move to the official `webview_flutter`. The Flutter team maintains it, and the app already uses it for a few dialogs. But its Android source (`webview_flutter_android` 4.14.1) shows three problems for PDA. Its navigation callback also cancels and re-issues the load (`setSynchronousReturnValueForShouldOverrideUrlLoading(true)`, then `loadUrl` after Dart answers). It has no API for document-start scripts, which userscripts need. It has no content blockers, window creation or HTTP authentication callbacks. Its default Android mode is Texture Layer Hybrid Composition, so scrolling changes too. PDA uses a wide part of the current plugin: 56 `evaluateJavascript` calls, 26 `getUrl` calls, user scripts, cookies, web storage and pull to refresh. So this move is a large rewrite that removes no cost by itself.
+3. A thin engine layer for PDA. On Android, it registers scripts once with `WebViewCompat.addDocumentStartJavaScript`. It uses `WebViewCompat.addWebMessageListener` as the bridge, which is origin-scoped and needs no `@JavascriptInterface`. It decides navigations natively from rules and calls Dart only for exceptions. It sends no per-resource events, and it batches the events that remain. On iOS, it uses `WKUserScript` and a message handler with replies. It can wrap the official plugin: `webview_flutter_android` gives access to the native WebView through `WebViewFlutterAndroidExternalApi`.
+
+Recommendation: do not switch first. The largest costs are in the app, and they stay with any plugin. Write the page data layer and the userscript loader against a narrow internal interface: add a document-start script, a message channel, evaluate, a navigation policy, and lifecycle events. Then a plugin change is one new implementation of that interface. Run the old and new implementations behind a Remote Config flag, and compare them with the replay rig (see "Regression testing") for behavior and speed. This is track W.
+
 ### A different engine or a native browser
 
 - Custom Tabs and Trusted Web Activities cannot inject scripts. They are not an option.
 - A native Android Activity browser, such as the plugin's `InAppBrowser`, removes the Flutter embedding. But the timers, chain widget and other Flutter overlays then need native versions or a second Flutter view. The effort is high.
 - GeckoView with a bundled WebExtension can do what Firefox with Tampermonkey does. But it needs a new Flutter plugin and adds about 60 to 80 MB per ABI. It still runs under a composition mode, and it has no iOS version.
 
-Recommendation: do not change the engine. Do the page data layer and tracks A to C first. Then compare the app with a minimal `flutter_inappwebview` app (see "Track 0") to measure how much of the remaining gap comes from the embedding.
+Recommendation: do not change the engine. Do the page data layer and tracks A to C first. A change of the WebView plugin (above) is a separate and smaller question. Then compare the app with a minimal `flutter_inappwebview` app (see "Track 0") to measure how much of the remaining gap comes from the embedding.
 
 ### Ideas with little value here
 
@@ -335,16 +345,18 @@ These were considered and are not recommended, so that nobody needs to ask again
 
 ### Order
 
-1. Track 0: measurement and preparation. Nothing else starts before the baseline exists.
+1. Track 0 (measurement) and track T (record and replay). Nothing else starts before the baseline and the first recordings exist.
 2. A1 and B1: small fixes, one pull request per fix. They hit every user and make later measurements clearer.
 3. R: the split of `webview_full.dart` into part files (see below).
 4. P, B2 and C in parallel, after R. D and E at any time.
+5. W, after P and B2.
 
 ### Tracks
 
 | Track | Content | Depends on | Acceptance metric |
 |---|---|---|---|
 | 0. Measurement | Inject the probe's hook wrappers first in `PDA_PERF` builds, so that PDA's own document-start code is counted. Build a minimal `flutter_inappwebview` app with the same plugin pin, as a control. Record the baseline on one device: PDA, the control app, and Firefox with Tampermonkey. Record the WebView and Firefox versions. Send `perf_trace.dart` upstream as a developer tool with no release cost. | None | A baseline file for each subject. |
+| T. Record and replay | The capture build, the anonymization addon, replay with clock control, the behavioral diff log, and the first recordings of about 30 page states. | None | The release build replayed twice against one recording gives the same diff log. |
 | A1. Dart hot path, quick fixes | Fix 1.1 (travel check, with an observer and a timeout) and 1.3 (progress bar). Fix the attack condition, the terminal listener, the show-case timer and the `getUrl` per progress event. From 1.4: add the iframe fast path, fix the `http` race, and register document-start scripts once per navigation. Delete the `onLoadStart` copy after the maintainer says that nothing needs it. | 0 | `counts.getHtml` at most 2 on a plain page. `counts.setState` under 10 per navigation. `lag.over50` lower than baseline. |
 | B1. Userscript quick fixes | 1.8 gate and duplicate promise, end scripts first in one call, remove only registered groups, cache patterns, a real list from `getCondSources` | 0 | `bridge.firstAt` near `probeStart`. `cb.onLoadStop.wallMs` lower than baseline. |
 | R. Split `webview_full.dart` | Move code into `part of` files without changes: navigation callbacks, resource callbacks, section reads, userscripts, build. Each callback becomes a one-line call to a named method. Agree this with the maintainer and do it right after a release. | A1 merged (smaller conflicts) | No behavior change. The diff is moves only. |
@@ -352,19 +364,42 @@ These were considered and are not recommended, so that nobody needs to ask again
 | B2. Document-start loader | Register once, match in JavaScript, run end scripts on `DOMContentLoaded`. Then `regexToAllowSyncUrlLoading` for Torn URLs. | B1, R | Script `probeStart` within 50 ms of Tampermonkey. `tap.tapToNavStart` within 50 ms of the control app. |
 | C. Widget isolation | Build `InAppWebView` once. Split the browser chrome into small widgets. Selectors in place of whole-provider listening. `TickerMode` for hidden tabs and the drawer. `GetBuilder` IDs. Settings through `setSettings`. | A1 (progress bar), R | `frames.uiOver16` and `lag.over50` during loads and scrolls. `janky_pct` in `adb-bench.sh`. |
 | D. Plugin fork patches | Filter the `onLoadResource` observer by URL. Skip the content blocker HEAD request (1.9). Send scroll and console events only to a listener. A batch API for scripts. Make `pluginScriptsForMainFrameOnly: true` an option behind Remote Config, because it removes the bridge from iframes and can break scripts there. | None | Platform channel message count per page. `nav.load` with chat hidden. |
+| W. WebView engine interface | A narrow interface for the page data layer and the loader. A second implementation on a thin engine layer. Both behind a Remote Config flag. | P, B2, T | No differences in the behavioral diff. Lower `tap.tapToNavStart` and platform channel message count than the fork. |
 | E. API, storage and startup | Share HTTP clients and decode once. Use `Isolate.run` for large JSON. Delay `_saveTabs`. Move large values out of the preferences database. Start services that the first frame does not need later. Test the prewarm unmount. | None | Time from process start to the first `loadEventEnd`. `lag.over50` while idle in the browser. |
 
 ### Regression testing
 
-The existing tests in `test/` cover models, chat and parts of `WebViewProvider`. They do not cover the injected JavaScript, the WebView callbacks or the section reads. Use this strategy:
+The existing tests in `test/` cover models, chat and parts of `WebViewProvider`. They do not cover the injected JavaScript, the WebView callbacks or the section reads. Automated access to torn.com is not allowed, so the tests use recorded traffic. This is track T.
 
-1. Fixtures. Save the HTML and the key XHR responses for about 30 page states. Include trades, vault, properties, city items, jail, bounties, item market, bazaar and quick items. Also include faction and chain, attack, hospital, travel (home, flying, abroad with stock), logged out and login error. Remove personal data. Keep the fixtures private.
-2. The current Dart reads as the reference. Write Dart golden tests that run the current section reads on each fixture. Run the new JavaScript extractors on the same fixtures in headless Chromium, with a stub for `callHandler`, and compare the results. For this, move the injected JavaScript from Dart strings to asset files.
-3. Loader tests. Run the B2 loader in headless Chromium with popular real scripts, such as FF Scouter. Test the run order, the timing against `DOMContentLoaded`, the `GM_*` and `PDA_*` APIs, and `@match` and `@exclude`.
-4. Shadow mode on the live site, as described for the page data layer.
-5. A manual checklist, made from the `_assess*` functions, the `*Triggered` flags and the `onLoadResource` branches. Run it on Android with each new Remote Config flag on and off. iOS needs the maintainer or a tester.
+#### Record and replay
 
-Keep automated runs on the live site few and at human speed, because of Torn's rules for scripts. The fixtures carry most of the testing.
+1. Capture. You play Torn by hand in a capture build of PDA on the Android emulator. mitmproxy records all traffic: pages, XHR, and the Dart calls to `api.torn.com`. A person plays and the proxy only listens, so no automated access to Torn takes place. The capture build differs from a debug build in two ways. A debug `network_security_config` trusts user certificates, so the WebView accepts the mitmproxy certificate. A Dart `HttpOverrides`, behind a build flag, trusts the same certificate, because Dart's HTTP client does not use the Android trust store.
+2. Anonymize. A mitmproxy addon replaces API keys in URLs, session cookies, your player ID, name and email, and your faction. It also maps the IDs of other players in `XID=` links and member lists. The mapping is consistent: one real ID always becomes the same fake ID, so cross references still work. Names in free text, such as chat, are hard to find, so keep the recordings private after this step too.
+3. Replay. mitmproxy server replay answers the app from the recording, and torn.com is never contacted. Replay ignores the parameters that change on each request (`rfcv`, the `_` timestamp). Identical requests get their recorded responses in order, so short sequences such as a trade or a purchase play back correctly. Game state does not change. Websockets (chat, live updates) do not replay well, so the replay stubs them.
+
+#### Time
+
+Torn is a real-time game, and the pages and API responses carry many timestamps. A recording replayed on a later day shows times in the past, and countdowns, travel and cooldowns break. There are two ways to handle this.
+
+1. Set the device clock to the time of the recording. This is the most faithful method, because Dart, the WebView and the page then all see the same time. On the emulator it is possible. Use an emulator image without the Play Store, so that `adb root` works. Turn off automatic time with `adb shell settings put global auto_time 0`. Then set the clock with `adb shell date`. Start each replay at the start time of its recording, and let the clock run. If the test taps at a human pace, the relative times then stay correct. TLS needs care: every certificate in the chain must be valid at the old time. Create the mitmproxy CA before the first recording. Make sure that the leaf certificates that mitmproxy creates at replay time are valid at the recording time. If they are not, create them in advance or change their validity period.
+2. Move the times in the recording to the replay time. The addon calculates the difference between the replay time and the recording time. It adds that difference to every absolute timestamp. Examples are the `server_time`, `timestamp` and `until` fields in the API, and time attributes in the HTML. Values in "seconds left" form stay as they are. This works on a real phone, where you cannot set the clock without root. It has a risk: one missed timestamp gives a wrong value.
+
+Use method 1 for behavior tests on the emulator, and method 2 for speed tests on a real phone. For a comparison of two builds, exact realism matters less than equal input. Both builds must get the same responses at the same device time.
+
+#### Tests on the replay
+
+1. Behavioral diff. Run the current release build and the candidate build against the same recording, with the same clock. Each build logs what PDA did on each page. The log has the detected section, the widgets with their values, and the handler and API calls. It also has a DOM snapshot after PDA's own scripts ran, and a marker from a test userscript. Any difference between the two logs is a regression or an intended change. Review each one. Maestro or Flutter `integration_test` taps through the recordings.
+2. Speed on a real phone. Point the phone at the replay proxy on a computer. Network noise then goes away, and before and after numbers from the measurement tools become repeatable.
+3. Extractor tests. Save the HTML and XHR responses from the recordings as fixtures for about 30 page states. Include trades, vault, properties, city items, jail, bounties, item market, bazaar and quick items. Also include faction and chain, attack, hospital, travel (home, flying, abroad with stock), logged out and login error.
+
+#### Other tests
+
+1. The current Dart reads as the reference. Write Dart golden tests that run the current section reads on each fixture. Run the new JavaScript extractors on the same fixtures in headless Chromium, with a stub for `callHandler`, and compare the results. For this, move the injected JavaScript from Dart strings to asset files.
+2. Loader tests. Run the B2 loader in headless Chromium with popular real scripts, such as FF Scouter. Test the run order, the timing against `DOMContentLoaded`, the `GM_*` and `PDA_*` APIs, and `@match` and `@exclude`.
+3. Shadow mode on the live site, as described for the page data layer.
+4. A manual checklist, made from the `_assess*` functions, the `*Triggered` flags and the `onLoadResource` branches. Run it on Android with each new Remote Config flag on and off. iOS needs the maintainer or a tester.
+
+Keep automated runs on the live site few and at human speed, because of Torn's rules for scripts. The recordings carry most of the testing.
 
 ### Getting changes accepted upstream
 
