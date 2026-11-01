@@ -79,7 +79,7 @@ Rules:
    ```
 
    A replay starts from a cleared app too. PDA checks a new key with API
-   calls. The replay can answer these calls only when the capture has them.
+   calls. If the capture does not have these calls, the replay cannot answer them.
 2. Start the proxy. The label goes into the file name.
 
    ```sh
