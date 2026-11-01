@@ -17,7 +17,7 @@ The probe is a userscript that runs at document start. It runs without changes i
 1. In Torn PDA, open Settings, then Userscripts. Add `tools/perf/pda-perf-probe.user.js` as a new script. Keep the `@run-at document-start` header.
 2. In Firefox for Android, install Tampermonkey. Add the same file as a new script.
 3. In each browser, open the same list of pages. Open each page three times. The first visit fills the cache. Use the second and third visits for warm-cache numbers.
-4. Wait at least 10 seconds on each page. The probe writes its record 10 seconds after the `load` event.
+4. Wait at least 10 seconds on each page. The probe writes its record 10 seconds after the `load` event, and keeps the last 50 records.
 5. Tap the badge at the bottom left of the page. Tap "Copy all" and paste the JSON into a file, for example `pda.json` and `firefox.json`.
 
 Compare these fields first.
@@ -25,17 +25,22 @@ Compare these fields first.
 | Field | What a large difference means |
 |-------|-------------------------------|
 | `probeStart` | Injection happens late. In Tampermonkey, document-start is close to 0. |
+| `tap.tapToNavStart`, `tap.tapToTtfb` | Time from your tap on the previous page to the start of the new document and to its first byte. This includes the time that the app holds the navigation before the request starts. |
 | `nav.dcl`, `nav.load` | The page itself is slower to parse or load. |
 | `res.cacheRatio` | Near 0 on a repeat visit means that the HTTP cache is off. |
 | `longTasks.total` | Main-thread JavaScript blocks the page. Chromium only. |
 | `hooks.*Injected` | Injected code (PDA built-ins or userscripts) adds observers and timers. |
-| `bridge.byName` | The number and round-trip time of calls from JavaScript to Dart. PDA only. |
+| `bridge.byName` | The number and round-trip time of calls from JavaScript to Dart. PDA only. `bridge.byName.onLoadResource.n` counts the plugin messages for subresources. |
+| `bridge.firstAt` | The time of the first call to Dart, for example the first `PDA_httpGet` of a userscript. |
+| `segments` | For each route change in a single-page part of Torn, the long tasks, bridge calls and frame gaps in the next 3 seconds. |
 | `interactions.max`, `interactions.p75` | Taps and key presses are slow to paint a response. |
 | `frames.scrollGaps50` | Frames over 50 ms during scrolls, measured in the page. |
 
 Two warnings apply to the probe.
 
 - The `hooks` section wraps `MutationObserver` and `setInterval`. This adds a small overhead. If you suspect that the overhead changes the result, set `HOOKS = false` at the top of the script.
+- In PDA, code that the app registers before this script (the plugin bridge and the PDA handler bundle) runs first. Observers that this code creates at document start are not in `hooks`.
+- The tap fields need two pages in the same tab. The probe stores the tap time in `sessionStorage` and ignores taps older than 15 seconds.
 - Firefox does not report `longtask` or `largest-contentful-paint` in all versions. Those fields stay at 0 or empty there. Compare them only between PDA builds.
 
 ## 2. Dart trace (Torn PDA only)
@@ -48,10 +53,14 @@ flutter run --profile --dart-define=PDA_PERF=true
 
 For each navigation in each tab, the app logs one line that starts with `[PDA-PERF-DART]`. The line contains:
 
-- `cb`: for each WebView callback, the number of calls, the synchronous Dart time, and the total time until its `Future` completed (this includes awaited platform calls),
+- `cb`: for each WebView callback, the number of calls, the synchronous Dart time (`syncMs`), and the wall time until its `Future` completed (`wallMs`). Wall time includes awaited platform calls and delays, so it measures latency, not cost. `shouldOverrideUrlLoading` fires before `onLoadStart`, so it shows up in the next record as `shouldOverrideUrlLoading(preNav)`.
+- `counts.getHtml`: the number of full-page HTML copies that Dart requested,
 - `counts.setState`: the number of `setState` calls on the `WebViewFull` state, which rebuilds the whole browser widget,
 - `counts.WebViewProvider.notify`: the number of `notifyListeners` calls on `WebViewProvider`,
-- `frames`: Flutter frames rendered, frames with UI or raster time over 16 ms, and the average UI and raster time.
+- `frames`: Flutter frames rendered, frames with UI or raster time over 16 ms, and the average UI and raster time,
+- `lag`: how late a 16 ms Dart timer fired. This shows main-thread work between frames, such as HTML parsing, channel handlers and storage, that `frames` does not see.
+
+`frames` and `lag` are process-wide. They appear only in the record of the tab that started the most recent navigation. Do not add them up across tabs. A callback that finishes after its record was written appears as a separate `[PDA-PERF-DART-LATE]` line.
 
 The flag also turns on Flutter's `debugProfilePlatformChannels`. Flutter then logs the platform channel traffic by channel and method once per second. Use it to count `evaluateJavascript`, `getUrl`, `onLoadResource` and other messages per page load.
 

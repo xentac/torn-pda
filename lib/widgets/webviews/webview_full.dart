@@ -1791,7 +1791,7 @@ class WebViewFullState extends State<WebViewFull>
               hideChatOnLoad();
 
               // Only the old loader check needs it
-              final document = _currentUrl.contains("loader.php") ? parse(await webViewController!.getHtml()) : null;
+              final document = _currentUrl.contains("loader.php") ? parse(await PerfTrace.getHtml(_tabUid, webViewController)) : null;
               _assessGeneral(document);
 
               assessGymAndHuntingEnergyWarning(uri.toString());

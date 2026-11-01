@@ -23,6 +23,16 @@
 # Output goes to OUTDIR/<package>/<run>-<slug>.{gfx,mem,cpu}.txt plus a summary.tsv.
 #
 # Notes:
+# - A VIEW intent is not a link tap. In Torn PDA it goes through the deep-link handler and a
+#   Dart loadUrl, so it does not include the shouldOverrideUrlLoading delay of a real tap. It
+#   can also show a toast, and with "open deep links in a new tab" it opens a new tab on every
+#   run. Turn that option off and close extra tabs first. Measure tap latency with the probe's
+#   "tap" fields instead.
+# - SETTLE=8 starts the swipes after most post-load work is done. Run once more with SETTLE=1 to
+#   see scrolling while the app is still busy with the page load.
+# - CPU covers the app process (and its ":" subprocesses). WebView renderer processes are
+#   shared and their names do not include the package, so they are counted only with
+#   RENDERERS=1. Close other WebView apps and Chrome first if you use it.
 # - Firefox (GeckoView) does not report its content frames through gfxinfo the same way
 #   as an Android View hierarchy. Compare Firefox with the probe's rAF frame-gap data and
 #   with Perfetto (see docs/perf/measurement.md), not with gfxinfo alone.
@@ -58,7 +68,8 @@ mkdir -p "$OUTDIR/$PKG"
 SUMMARY="$OUTDIR/$PKG/summary.tsv"
 [ -f "$SUMMARY" ] || printf "run\turl\tframes\tjanky_pct\tp50_ms\tp90_ms\tp99_ms\tpss_kb\tcpu_ticks\n" >"$SUMMARY"
 
-read -r W H < <(adb shell wm size | awk -F'[ x]' '/Physical/ {print $3, $4}')
+# "Override size" (if present) comes after "Physical size" and wins.
+read -r W H < <(adb shell wm size | awk -F'[ x]' '/size:/ {w = $3; h = $4} END {print w, h}')
 X=$((W / 2))
 Y1=$((H * 3 / 4))
 Y2=$((H / 4))
@@ -67,15 +78,18 @@ cpu_ticks() {
   # utime+stime of every process of the package, in clock ticks.
   local total=0 pid
   for pid in $(adb shell pidof "$@" 2>/dev/null); do
-    t=$(adb shell cat "/proc/$pid/stat" 2>/dev/null | awk '{print $14 + $15}')
+    # Isolated renderer processes can be unreadable without root.
+    t=$(adb shell cat "/proc/$pid/stat" 2>/dev/null | awk '{print $14 + $15}' || true)
     total=$((total + ${t:-0}))
   done
   echo "$total"
 }
 
 procs() {
-  # The app process plus WebView renderer / Gecko content processes.
-  adb shell ps -A -o NAME | grep -E "^$PKG(:|$)|webview|sandboxed_process|privileged_process" | sort -u | tr '\n' ' '
+  # The app process and its own subprocesses (Gecko content processes are "$PKG:tab<N>").
+  local re="^$PKG(:|$)"
+  [ "${RENDERERS:-0}" = 1 ] && re="$re|webview|sandboxed_process|privileged_process"
+  adb shell ps -A -o NAME | grep -E "$re" | sort -u | tr '\n' ' '
 }
 
 for run in $(seq 1 "$RUNS"); do
@@ -104,7 +118,7 @@ for run in $(seq 1 "$RUNS"); do
     p90=$(awk '/^90th percentile/ {print $3; exit}' "$base.gfx.txt")
     p99=$(awk '/^99th percentile/ {print $3; exit}' "$base.gfx.txt")
     pss=$(awk '/TOTAL PSS:/ {print $3; exit} /^ *TOTAL / {print $2; exit}' "$base.mem.txt")
-    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$run" "$url" "${frames:-}" "${janky:-}" "${p50:-}" "${p90:-}" "${p99:-}" "${pss:-}" "$((c1 - c0))" >>"$SUMMARY"
+    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$run" "$url" "${frames:-NA}" "${janky:-NA}" "${p50:-NA}" "${p90:-NA}" "${p99:-NA}" "${pss:-NA}" "$((c1 - c0))" >>"$SUMMARY"
   done
 done
 echo "Summary: $SUMMARY"
