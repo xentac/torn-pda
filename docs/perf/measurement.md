@@ -53,7 +53,7 @@ flutter run --profile --dart-define=PDA_PERF=true
 
 For each navigation in each tab, the app logs one line that starts with `[PDA-PERF-DART]`. The line contains:
 
-- `cb`: for each WebView callback, the number of calls, the synchronous Dart time (`syncMs`), and the wall time until its `Future` completed (`wallMs`). Wall time includes awaited platform calls and delays, so it measures latency, not cost. `shouldOverrideUrlLoading` fires before `onLoadStart`, so it shows up in the next record as `shouldOverrideUrlLoading(preNav)`.
+- `cb`: for each WebView callback, the number of calls and two times. `syncMs` is the synchronous Dart time. `wallMs` is the time until its `Future` completed. Wall time includes awaited platform calls and delays, so it measures latency, not cost. `shouldOverrideUrlLoading` fires before `onLoadStart`, so it shows up in the next record as `shouldOverrideUrlLoading(preNav)`.
 - `counts.getHtml`: the number of full-page HTML copies that Dart requested,
 - `counts.setState`: the number of `setState` calls on the `WebViewFull` state, which rebuilds the whole browser widget,
 - `counts.WebViewProvider.notify`: the number of `notifyListeners` calls on `WebViewProvider`,
