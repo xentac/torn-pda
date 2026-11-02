@@ -19,7 +19,14 @@ Last update: 2026-11-02 (fifth session).
   `endRefreshing()`, the attack condition, the terminal listener
   (`listen: false`, 500 entries at most) and the show-case timer. PR #501
   now has only a counter on top of their travel check. See "Next steps".
-- Branch `perf/analysis`, based on `origin/develop` at `fe76815d`. It is on
+- Branch `perf/analysis`, based on `origin/develop` at `610af44f` since the
+  rebase on 2026-11-02 (fifth session). The branch before the rebase is the
+  local `perf/analysis-pre-610af44f`. The rebased profile build is
+  `~/pda-recordings/apks/d4a7dbad.apk`. One attack run on it passed. It
+  has new misses that the old recordings cannot answer, because the new
+  `develop` makes new requests: `tchat/settings`, `tchat/rooms/tokens` and
+  the API call `user/organizedcrime`. Before the rebase, it was based on
+  `fe76815d`. It is on
   the fork (`xentac/perf/analysis`) since 2026-11-02. Ask before each push to
   the fork. Never push upstream. Before the first push, one commit was
   rewritten to keep a security detail out of the public history. The old
@@ -491,6 +498,21 @@ the function body of `waitForSelectorJS` in the WebView devtools and add
 a `div.travel-home` element.
 
 ### Lessons from the baseline work
+
+- Rebase lesson: in a conflict, never take a whole file with
+  `git checkout --ours`. It also drops the hunks of the commit that did not
+  conflict. On the rebase on `610af44f`, this lost 20 `PerfTrace.getHtml`
+  hooks, and commit `d4a7dbad` put them back. After a rebase, count the
+  hooks: `grep -rn '\.getHtml()' lib` must show only `perf_trace.dart`.
+- Since `610af44f`, `MyHttpOverrides` rejects certificates that are not
+  from a known root (Remote Config `network_strict_mode`). In `PDA_PROXY`
+  builds, the fork also accepts a certificate whose issuer contains
+  `mitmproxy`. Without this, the Dart API calls fail in the replay.
+- The ignored files in `lib/torn-pda-native/` are copies of the public
+  stubs in `lib/config/*.dart.example`. When upstream changes a stub, copy
+  it again, or `flutter analyze` fails. On 2026-11-02, 60 tests in
+  `test/chat/` failed locally after the rebase. The fork does not change
+  chat code. Not yet checked on a clean `develop`.
 
 - The emulator crashed (SIGSEGV in `gfxstream ColorBuffer::onLoad`) on the
   second snapshot load after a boot. The trigger was a snapshot saved 12 s
