@@ -45,7 +45,7 @@ The first baseline used a profile build of `perf/analysis` at `50a4a3d9` with `P
 | Faction (other) | 1207 | 38 | 96 |
 | Crimes (one visit) | 896 | 62 | 136 |
 
-On the profile and attack pages, the counts agree with the estimate of about 12 `getHtml` calls per plain page. The faction and crimes pages make three to five times as many copies. The counts are the same, or almost the same, in every run. Thus a change in a count is real. Page load time varies by up to 13 % between runs on the profile and faction pages. A change smaller than that needs more runs. The emulator is not a phone, so use these numbers to compare builds, not as the speed that users see. The method and the full results are in `docs/perf/progress.md`.
+On the profile and attack pages, the counts agree with the estimate of about 12 `getHtml` calls per plain page. The faction and crimes pages make three to five times as many copies. The counts are the same, or almost the same, in every run. Thus a change in a count is real. Page load time varies by up to 13 % between runs on the profile and faction pages. Part of this spread is drift: the emulator got faster during a session. Thus each comparison runs the two builds in alternation in one session. The emulator is not a phone, so use these numbers to compare builds, not as the speed that users see. The method and the full results are in `docs/perf/progress.md`.
 
 ## The central problem: one thread does everything
 

@@ -190,8 +190,8 @@ repeats.
 - Some requests carry a random value, for example the `scene` of the graffiti
   banner. They are misses.
 - Google and Firebase stay live, so the remote feature flags come from the
-  network. For a comparison of two builds, run both on the same day, or
-  set the flag values in the test.
+  network. For a comparison of two builds, run both in one session with
+  `PDA_APKS` (see "Automated runs"), or set the flag values in the test.
 - The replay matches requests without the parameters `rfcv`, `_`, `key`,
   `timestamp` and `t`. Torn's sidebar sends `t` as a millisecond time on
   each `servertime` call. Change this with `--set pda_replay_ignore=...`.
