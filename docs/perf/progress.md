@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-02 (end of the seventh session).
+Last update: 2026-11-02 (end of the eighth session).
 
 ## State
 
@@ -20,8 +20,13 @@ Last update: 2026-11-02 (end of the seventh session).
   (`listen: false`, 500 entries at most) and the show-case timer. PR #501
   had only a counter on top of their travel check, and was merged on
   2026-11-02. See "Next steps".
-- Branch `perf/analysis`, based on `origin/develop` at `34594b4c` (after
-  the merge of #501). The first rebase, on `610af44f`, was on 2026-11-02
+- Branch `perf/analysis`, based on `origin/develop` at `a2377dcc` since the
+  eighth session. The rebase had no conflicts. The new `develop` has only
+  `c27e9e54` (the changelog pauses its animation under the browser) and a
+  TornTools catalog update. The branch before this rebase is the local
+  `perf/analysis-pre-a2377dcc`. The fork still has the old history, so the
+  next push to the fork is a force push. Before that, it was based on
+  `34594b4c` (after the merge of #501). The first rebase, on `610af44f`, was on 2026-11-02
   (fifth session). The branch before the rebase is the
   local `perf/analysis-pre-610af44f`. The rebased profile build is
   `~/pda-recordings/apks/d4a7dbad.apk`. One attack run on it passed. It
@@ -47,8 +52,15 @@ Last update: 2026-11-02 (end of the seventh session).
     in the seventh session.
   - `b64a3b8c` and `b585eab7`: the old base and `5dad324a` with a timer
     on each await in `onLoadStop`. They are only for that measurement.
-- `perf/analysis` has one commit that is not on the fork: the
-  `onLoadStop` notes of the seventh session. Ask before you push.
+  - `53fad5c1`: `perf/analysis` on `develop` at `a2377dcc`, with the probe
+    that records the test userscripts. It is the B1 base. Built in the
+    eighth session.
+- Emulator snapshots for replay: `replay-ready` is the A1 snapshot. Keep
+  it. `replay-ready-b1` (eighth session) has the test userscripts and
+  PDA's five example scripts. Use it for all B1 work, with
+  `PDA_SNAPSHOT=replay-ready-b1`. Compare runs only within one snapshot.
+- The commits of the eighth session are not on the fork. Ask before you
+  push.
 - The report is published as a shared artifact:
   https://claude.ai/artifact/GCojySixXsQJxfYYTqNxfK (version 13). The source is
   `report.md`.
@@ -365,6 +377,7 @@ table when a PR is opened, changed or closed.
 
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
+| GM handler crashes after renderer recovery (before this project) | none | `fix/gm-handler-reinject` | [#480](https://github.com/Manuito83/torn-pda/pull/480) | Merged on 2026-07-22. |
 | A1 1.1, travel check counter | none (upstream did 1.1) | `travel-check-observer` (commit `b47209b0`, from local `travel-check-counter`) | [#501](https://github.com/Manuito83/torn-pda/pull/501) | Merged on 2026-11-02 as `9b690feb`. The maintainer then shortened its two comments (`34594b4c`). Keep comments in upstream branches to a few words. |
 
 To see the state of all PRs:
@@ -432,46 +445,24 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
       stays registered on the next page. Make sure that this is still true
       on `develop` before you fix it.
 
-   Step 1 is the measurement setup, because the replay snapshot has no
-   userscripts, so no B1 cost shows:
-
-   - On its first run, PDA downloads five example scripts from GitHub
-     (`addDefaultScripts`, URLs in `UserScriptModel.exampleScriptURLs`).
-     Real users have them. The snapshot has none, because the replay
-     proxy answers these downloads with a 502 miss
-     (`~/pda-recordings/logs/make-snapshot.misses.jsonl`). Download the
-     five files once into `~/pda-recordings/`, and let the proxy serve
-     them at their GitHub URLs. None of them matches the attack flow
-     pages, so they measure the cost of scripts that do not match.
-   - Write test userscripts in `tools/replay/userscripts/`: one at
-     `document-start` that calls `PDA_httpGet` (for 1.8), and a few at
-     `document-end` that match the attack flow pages (for 1.7). Each one
-     logs its start time and its first answer with `console.log`, so
-     that they reach `perf.txt`. Read `tools/perf/pda-perf-probe.user.js`
-     for the log format first.
-   - PDA adds a script from a URL (`UserScriptModel.fromURL`, used in
-     `lib/widgets/settings/userscripts_add_dialog.dart`). Let the replay
-     proxy serve the test scripts at fixed URLs, for example under
-     `https://pda-replay.invalid/`, like the blank page.
-   - The `PDA_httpGet` target must be in a recording, or the proxy must
-     answer it with a fixed reply.
-   - Add the scripts in `setup.yaml` and build `replay-ready` again.
-     Keep a copy of the old snapshot, because the A1 numbers come from
-     it. Compare runs only within one snapshot.
-   - Then measure `perf/analysis` with the new snapshot as the B1
-     baseline: `bridge.firstAt` against `probeStart` and `nav.load`, and
-     `dart.cb.onLoadStop.wallMs`.
+   Step 1, the measurement setup, is done (eighth session). See "The B1
+   baseline". The next task is fix 1.8 against the B1 baseline: a
+   measurement branch from `perf/analysis` and an upstream branch from
+   `origin/develop`. Its success metric is
+   `probe.us.start.answerAt` minus `probe.us.start.callAt`, and
+   `probe.us.start.readyAt`. Write the iOS and beta-tester test plan into
+   the PR text.
 
    Then one branch for each fix, as in item 1. The user writes and posts
    each PR.
 
    Also open, not B1:
 
-   - The `TickerMode` change (local branch `perf/drawer-tickermode`,
-     commit `8f24d8e4`, APK `8f24d8e4.apk`). The sixth session recorded
-     that the maintainer makes it, but it is not on `develop` on
-     2026-11-02. Ask the user whether to make it a PR. Its side effect on
-     the chat poll is in "The 60 frames each second". Keep the branch.
+   - The `TickerMode` change is dropped (the user's decision, eighth
+     session). The maintainer's `c27e9e54` pauses the changelog animation
+     under the browser, which was the only case that we measured. Keep
+     the local branch `perf/drawer-tickermode`. Make a PR only if a frame
+     run shows another animation under the browser.
    - The A1 items from 1.4 (the iframe fast path, the `http` race,
      document-start scripts once per navigation), and `getHtml` 3 on the
      profile page.
@@ -548,10 +539,78 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 
 2. Done: `summarize.py --compare` (see "Comparing two builds" in
    `measurement.md`).
-3. Test userscripts in the snapshot: see item 0, B1 step 1.
+3. Done: test userscripts in the snapshot (see "The B1 baseline").
 4. 16 runs for the profile and faction pages, where the `nav.load` spread is
    over 10 %.
 5. Find why one crimes run went back to the blank page (see the lessons).
+
+### The B1 baseline
+
+Done on 2026-11-02 (eighth session).
+
+What changed in the tools:
+
+- The replay proxy serves files at fixed URLs (`pda_replay_static`,
+  `PDA_STATIC` in `common.sh`), without a recording. See the replay
+  README.
+- PDA's five example scripts are saved from `origin/master` (`3d5e6d4a`)
+  in `~/pda-recordings/userscripts/examples/`, with `static.json`, the map
+  of their GitHub URLs. The proxy serves them, and PDA installs them on
+  its first run.
+- The test userscripts are in `tools/replay/userscripts/`. `perf-start`
+  runs at document start on every Torn page and calls `PDA_httpGet`.
+  Three scripts run at document end: `perf-end-all` (every page, also
+  calls `PDA_httpGet`), `perf-end-profile` (`profiles.php*`) and
+  `perf-end-page` (`page.php*`). Each one writes its times into
+  `window.__pdaPerfUs`. The probe (version 0.3.0) adds this object to its
+  record, so `summarize.py` shows the fields as `probe.us.<script>.<field>`.
+  The probe also writes `bridge.byName.<handler>.firstAt`.
+- `make-snapshot.sh` adds the test scripts through PDA's remote load
+  dialog (`flows/add-userscripts.yaml`). The success message is a toast,
+  which Maestro cannot see, so the flow waits for the script name.
+- A correction: the example script `Company Stock Order` (`auto-stock-fill`)
+  matches `https://www.torn.com/*`, so it runs on every page. It only
+  waits for a hash change, so it is cheap.
+- An open question: the old `replay-ready` snapshot already listed the
+  five example scripts, although the proxy answered their downloads with
+  a 502. Where the scripts came from is not known. Thus the A1 runs
+  probably had them too.
+
+The run: 8 runs of `53fad5c1.apk` on the attack flow, from
+`replay-ready-b1`, with `PDA_APKS` (each run installs the APK again and
+starts PDA). All 8 passed, and all 8 have the test-script fields, so the
+scripts stay after a restart. The misses are the same as before (the
+websocket, `tchat/*`, `user/organizedcrime`). The summary is in
+`~/pda-recordings/baselines/b1-53fad5c1/attack.json`.
+
+Medians in ms from the navigation start:
+
+| Page | `nav.load` | `start.callAt` | `start.readyAt` | `start.answerAt` | `endAll.start` | second end script `start` | `onLoadStop` wall |
+|---|---|---|---|---|---|---|---|
+| `profiles.php?XID=N` | 1081 | 354 | 1180 | 1360 | 1621 | 1756 | 732 |
+| `page.php?sid=attack` | 911 | 291 | 932 | 969 | 971 | 1000 | 136 |
+| `page.php?sid=attackLog` | 1220 | 750 | 1267 | 1370 | 1416 | 1468 | 258 |
+
+What the numbers show:
+
+- Finding 1.8 is real. A `PDA_httpGet` call at document start waits
+  for the platform-ready event. That event comes 21 to 99 ms after the
+  page `load`. Thus the call waits 517 to 826 ms
+  (`readyAt` minus `callAt`), and the answer comes 1006 ms (profile), 678
+  ms (attack) and 620 ms (attack log) after the call. In Tampermonkey,
+  the same request would start at once.
+- Finding 1.7: the first document-end script starts 60 ms (attack),
+  196 ms (attack log) and 540 ms (profile) after `load`. The second
+  matching script starts 29 to 135 ms after the first one, because
+  `onLoadStop` runs them one at a time.
+- `dart.cb.onLoadStop.wallMs` is much larger with scripts: 732, 136 and
+  258 ms. In the clean A1 run (no test scripts, other snapshot), it was
+  187, 42 and 98 ms. Do not compare these runs directly, because the
+  snapshots differ. A fix must be compared with `53fad5c1` in one
+  session.
+- `getHtml` (3, 2, 2) and `setState` (6 on each page) are as in A1.
+- The profile page record is `final` in 6 of 8 runs. Compare its probe
+  times with care.
 
 ### A1 after the maintainer's commit 610af44f
 
