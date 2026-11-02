@@ -293,7 +293,12 @@ How much the numbers vary (p25 to p75, as a share of the median):
 - `cb.onLoadStop.wallMs` (16 to 65 %) and the `lag` counts (small numbers)
   are too noisy for a comparison alone.
 
-Two notes for reading the numbers:
+Three notes for reading the numbers:
+
+- `probeStart` counts from the navigation start, so it includes the server
+  time of the recording (718 ms on the attack log). The injection delay is
+  `injectAfterTtfb` (`probeStart` minus `nav.ttfb`): 20 to 37 ms. Use it for
+  the B2 target "within 50 ms of Tampermonkey".
 
 - The profile page is left before its 10 s report, so its probe record is
   the `pagehide` one (`final: 1`). It covers a shorter time than the others.
@@ -309,6 +314,19 @@ The original plan:
 - Run the summary script, and save the result as the baseline for the build.
 - If the spread is too large to see a change of about 10%, add runs, or find
   the source of the noise first.
+
+## Next steps
+
+1. The A1 and B1 quick fixes from the report, one branch each. Measure each
+   one before and after with `run-baseline.sh` and `summarize.py`, on the
+   same day, so that the Remote Config flags are the same.
+2. A `--compare BASELINE` option for `summarize.py`, which prints the change
+   of each median and marks changes outside the p25 to p75 range.
+3. A test userscript that calls `PDA_httpGet` at document start, in the
+   snapshot, so that finding 1.8 gets a number.
+4. 16 runs for the profile and faction pages, where the `nav.load` spread is
+   over 10 %.
+5. Find why one crimes run went back to the blank page (see the lessons).
 
 ### Lessons from the baseline work
 
