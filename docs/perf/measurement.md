@@ -14,7 +14,7 @@ The tools have three parts. Each part sees a different layer of the app.
 
 The probe is a userscript that runs at document start. It runs without changes in Torn PDA and in Tampermonkey or Violentmonkey. This lets you compare the two browsers on the same pages with the same code.
 
-1. In Torn PDA, open Settings, then Userscripts. Add `tools/perf/pda-perf-probe.user.js` as a new script. Keep the `@run-at document-start` header.
+1. In Torn PDA, open Settings, then Userscripts. Add `tools/perf/pda-perf-probe.user.js` as a new script. Keep the `@run-at document-start` header. A `PDA_PERF` build (see section 2) injects the probe itself, before PDA's own scripts. With such a build, do not add the script.
 2. In Firefox for Android, install Tampermonkey. Add the same file as a new script.
 3. In each browser, open the same list of pages. Open each page three times. The first visit fills the cache. Use the second and third visits for warm-cache numbers.
 4. Wait at least 10 seconds on each page. The probe writes its record 10 seconds after the `load` event, and keeps the last 50 records.
@@ -39,7 +39,8 @@ Compare these fields first.
 Two warnings apply to the probe.
 
 - The `hooks` section wraps `MutationObserver` and `setInterval`. This adds a small overhead. If you suspect that the overhead changes the result, set `HOOKS = false` at the top of the script.
-- In PDA, code that the app registers before this script (the plugin bridge and the PDA handler bundle) runs first. Observers that this code creates at document start are not in `hooks`.
+- In PDA, code that the app registers before this script runs first. Observers that this code creates at document start are not in `hooks`. As a userscript, the probe runs after the plugin bridge and the PDA handler bundle. In a `PDA_PERF` build, it runs after the plugin bridge only.
+- If you change the probe, run `tools/perf/gen-probe.sh`. It writes the copy that `PDA_PERF` builds inject (`lib/utils/perf/probe_source.g.dart`).
 - The tap fields need two pages in the same tab. The probe stores the tap time in `sessionStorage` and ignores taps older than 15 seconds.
 - Firefox does not report `longtask` or `largest-contentful-paint` in all versions. Those fields stay at 0 or empty there. Compare them only between PDA builds.
 
@@ -60,15 +61,33 @@ For each navigation in each tab, the app logs one line that starts with `[PDA-PE
 - `frames`: Flutter frames rendered, frames with UI or raster time over 16 ms, and the average UI and raster time,
 - `lag`: how late a 16 ms Dart timer fired. This shows main-thread work between frames, such as HTML parsing, channel handlers and storage, that `frames` does not see.
 
-`frames` and `lag` are process-wide. They appear only in the record of the tab that started the most recent navigation. Do not add them up across tabs. A callback that finishes after its record was written appears as a separate `[PDA-PERF-DART-LATE]` line.
+`frames` and `lag` are process-wide. They appear only in the record of the tab that started the most recent navigation. Do not add them up across tabs. A callback that finishes after its record was written is counted in `latePrev` of the next record of the same tab. The late callbacks of the last page in a tab are not written.
 
 The flag also turns on Flutter's `debugProfilePlatformChannels`. Flutter then logs the platform channel traffic by channel and method once per second. Use it to count `evaluateJavascript`, `getUrl`, `onLoadResource` and other messages per page load.
 
-To read the log, run:
+The same build also writes each record of the page probe (section 1) with the prefix `[PDA-PERF-PROBE]`. It takes these records from the console, so they do not go to PDA's terminal.
+
+`dart:developer` logs do not reach logcat, so the app writes each record twice: to the developer log (DevTools), and to logcat with `print`. Flutter cuts logcat lines at about 1 KB, so the logcat copy is split into lines of this form:
+
+```text
+[PDA-PERF-DART] <id> <part>/<parts> <text>
+```
+
+To get a record, join the text of all parts of one id, in order. To read the log, run:
 
 ```bash
-adb logcat | grep -E 'PDA-PERF|Platform Channel'
+adb logcat | grep -E 'PDA-PERF-(DART|PROBE)|Platform Channel'
 ```
+
+The replay tests (`tools/replay/run-test.sh`) save these lines in `perf.txt` in each run folder. They also write `env.json`: the app version and install time, the WebView version, the AVD, the snapshot, the recordings and `MITM_ARGS`.
+
+To make a baseline from several runs of one flow, run:
+
+```bash
+tools/perf/summarize.py ~/pda-recordings/runs/*-faction -o baseline-faction.json
+```
+
+The script joins the parts of each record and groups the records by page (the URL without host, fragment and IDs). For each number in the records, it writes the median, p25, p75, min and max over the runs. If the runs have different `env.json` values, the script stops.
 
 ## 3. Whole-app bench (adb)
 

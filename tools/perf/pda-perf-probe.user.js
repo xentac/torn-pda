@@ -35,11 +35,15 @@
 // - hooks: MutationObservers, setInterval timers and their callback time, split into
 //   "page" (stack contains a page-origin URL) and "injected" (everything else).
 //   Set HOOKS = false to remove this instrumentation if you suspect its own overhead.
-//   In PDA, code registered before this script (the plugin bridge, the PDA handler bundle)
-//   runs first, so observers it creates at document start are not counted.
+//   In PDA, code registered before this script runs first, so observers it creates at document
+//   start are not counted. A PDA_PERF build injects this script itself, before the PDA handler
+//   bundle, so only the plugin's own scripts run earlier there. Then do not also install it as a
+//   userscript.
 (function () {
   "use strict";
   if (window.__pdaPerfProbe) return;
+  // PDA_PERF builds inject this script on every page, without the @match header.
+  if (location.hostname !== "www.torn.com") return;
   const HOOKS = true;
   const STORE_KEY = "pdaPerfProbe.v1";
   const MAX_RECORDS = 50;
@@ -318,7 +322,9 @@
 
   // Report 10 s after load so late LCP, long tasks and the first interactions are captured.
   // A second, final write happens on pagehide so interaction data from the whole visit is kept.
+  // If the page is left before the 10 s report, the pagehide write goes to the console instead.
   let reportedIdx = -1;
+  let logged = false;
   const report = (final) => {
     const r = JSON.parse(JSON.stringify(finalize()));
     r.final = !!final;
@@ -329,7 +335,8 @@
       reportedIdx = Math.min(all.length, MAX_RECORDS) - 1;
     }
     save(all);
-    if (!final) console.log("[PDA-PERF] " + JSON.stringify(r));
+    if (!logged) console.log("[PDA-PERF] " + JSON.stringify(r));
+    logged = true;
     return r;
   };
 
