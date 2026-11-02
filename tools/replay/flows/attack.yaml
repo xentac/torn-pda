@@ -1,0 +1,53 @@
+# Opens a profile, attacks the player with the Macana until they are down,
+# hospitalizes them and continues to the attack log.
+# Recording: a capture of these steps against profiles.php?XID=<target>.
+# In anon/attack.mitm the target is 8810916 (Player306242).
+appId: com.manuito.tornpda
+---
+- runFlow: dismiss-tips.yaml
+- openLink: "https://www.torn.com/profiles.php?XID=8810916"
+- extendedWaitUntil:
+    visible:
+      id: "button0-profile-8810916"
+    timeout: 60000
+- takeScreenshot: profile
+- tapOn:
+    id: "button0-profile-8810916"
+- extendedWaitUntil:
+    visible: "Start fight"
+    timeout: 30000
+- takeScreenshot: attack
+# Fights run on real time: after the last hit, the page gives 30 seconds to
+# choose, and then leaves by itself. Maestro normally waits up to many seconds for
+# the screen to settle after a tap, and the attack page never settles.
+- tapOn:
+    text: "Start fight"
+    waitToSettleTimeoutMs: 500
+- extendedWaitUntil:
+    visible: "Attack with Macana"
+    timeout: 30000
+# The recording has four hits. After the last recorded answer, the replay
+# repeats it, so extra taps get the same result.
+- repeat:
+    times: 8
+    while:
+      notVisible: "(?i)hospitalize"
+    commands:
+      - tapOn:
+          text: "Attack with Macana"
+          waitToSettleTimeoutMs: 500
+- extendedWaitUntil:
+    visible: "(?i)hospitalize"
+    timeout: 30000
+- takeScreenshot: fight-won
+- tapOn:
+    text: "(?i)hospitalize"
+    waitToSettleTimeoutMs: 500
+- extendedWaitUntil:
+    visible: "(?i)continue"
+    timeout: 30000
+- tapOn: "(?i)continue"
+- extendedWaitUntil:
+    visible: "Attack Log | TORN"
+    timeout: 60000
+- takeScreenshot: attack-log

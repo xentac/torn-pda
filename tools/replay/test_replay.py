@@ -214,6 +214,45 @@ def test_anonymize_multipart_forms(files):
     assert form["apiKey"] != web_key and len(form["apiKey"]) == len(web_key)
 
 
+def test_anonymize_websocket_login_token(files):
+    """Torn's websocket login sends a JWT whose payload holds the player ID in base64."""
+    import base64
+
+    from mitmproxy import websocket
+    from wsproto.frame_protocol import Opcode
+
+    def b64(d):
+        return base64.urlsafe_b64encode(json.dumps(d).encode()).decode().rstrip("=")
+
+    sig = "SPtXdRealSignatureAbc123_-xyz"
+    token = f"{b64({'typ': 'JWT', 'alg': 'HS256'})}.{b64({'sub': OWN_ID, 'iat': 1793591588})}.{sig}"
+    ws = flow("GET", "https://ws-centrifugo.torn.com/connection/websocket", ts=1_760_000_003.0)
+    ws.websocket = websocket.WebSocketData()
+    ws.websocket.messages.append(websocket.WebSocketMessage(Opcode.TEXT, True, json.dumps({"connect": {"token": token}}).encode()))
+    write(files["raw"], recording() + [ws])
+    assert run_anonymize(files) == 0
+    out = read(files["anon"])[-1].websocket.messages[0].text
+    new_token = json.loads(out)["connect"]["token"]
+    head, payload, new_sig = new_token.split(".")
+    claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+    assert claims["sub"] != OWN_ID and len(claims["sub"]) == len(OWN_ID) and claims["iat"] == 1793591588
+    assert new_sig != sig and len(new_sig) == len(sig)
+
+
+def test_anonymize_keeps_zero_ids(files):
+    """Torn sends userID=0 for "no player". A fake value there makes the replay miss."""
+    zero = flow("POST", "https://www.torn.com/faction_wars.php?step=getwardata&factionID=0&userID=0", ts=1_760_000_003.0)
+    write(files["raw"], recording() + [zero])
+    assert run_anonymize(files) == 0
+    # An older version of the tool mapped short numbers, and the map keeps its entries.
+    m = json.loads(files["map"].read_text())
+    m["ids"]["0"] = "7"
+    files["map"].write_text(json.dumps(m))
+    files["anon"].unlink()
+    assert run_anonymize(files) == 0
+    assert read(files["anon"])[-1].request.query["userID"] == "0"
+
+
 def test_anonymize_refuses_to_write_a_leak(files):
     leak = recording()
     leak.append(
@@ -299,6 +338,62 @@ async def test_replay_form_body_ignores_rfcv_and_falls_back(replay):
     r = await ask(addon, "POST", "https://www.torn.com/trade.php", b"step=other", form)
     assert r.content == b"trade" and r.headers[pda_replay.HEADER] == "loose"
     assert '"loose"' in (tmp / "misses.jsonl").read_text()
+
+
+def multipart(fields, boundary):
+    body = "".join(f'--{boundary}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n' for k, v in fields)
+    return (body + f"--{boundary}--\r\n").encode(), {"content-type": f"multipart/form-data; boundary={boundary}"}
+
+
+async def test_replay_multipart_body_ignores_the_boundary(tmp_path):
+    """Torn's attack page posts every fight step as a multipart form to the same URL."""
+    url = "https://www.torn.com/page.php?sid=attackData&mode=json&rfcv=111"
+    steps = ["poll", "startFight", "attack"]
+    flows = []
+    for i, step in enumerate(steps):
+        body, headers = multipart([("step", step), ("rfcv", "111")], f"Boundary{i}")
+        flows.append(flow("POST", url, req_body=body, req_headers=headers, body=step.encode(), ts=1_760_000_000.0 + i))
+    rec = tmp_path / "rec.mitm"
+    write(rec, flows)
+    addon = pda_replay.PdaReplay()
+    with taddons.context(addon) as tctx:
+        tctx.configure(addon, pda_replay=str(rec), pda_replay_misses=str(tmp_path / "misses.jsonl"))
+        # A different boundary and a different rfcv.
+        for step in steps:
+            body, headers = multipart([("step", step), ("rfcv", "999")], "OtherBoundary")
+            r = await ask(addon, "POST", url.replace("111", "999"), body, headers)
+            assert r.content == step.encode() and r.headers[pda_replay.HEADER] == "hit"
+
+
+async def test_replay_poll_after_the_recording_moved_on_gets_the_latest_state(tmp_path):
+    """A poll during a fight must not get the last poll answer from before the fight."""
+    url = "https://www.torn.com/page.php?sid=attackData"
+    form = {"content-type": "application/x-www-form-urlencoded"}
+    flows = [
+        flow("POST", url, req_body=b"step=poll", req_headers=form, body=b"not started", ts=1_760_000_000.0),
+        flow("POST", url, req_body=b"step=poll", req_headers=form, body=b"not started 2", ts=1_760_000_000.5),
+        flow("POST", url, req_body=b"step=startFight", req_headers=form, body=b"started", ts=1_760_000_001.0),
+        flow("POST", url, req_body=b"step=attack", req_headers=form, body=b"hit 1", ts=1_760_000_002.0),
+    ]
+    rec = tmp_path / "rec.mitm"
+    write(rec, flows)
+    addon = pda_replay.PdaReplay()
+    with taddons.context(addon) as tctx:
+        tctx.configure(addon, pda_replay=str(rec), pda_replay_misses=str(tmp_path / "misses.jsonl"))
+        answers = []
+        # One poll fewer than recorded before the start: the second recorded poll is
+        # from before the start and must not come after it.
+        for step in [b"poll", b"startFight", b"poll", b"attack", b"poll"]:
+            r = await ask(addon, "POST", url, b"step=" + step, form)
+            answers.append((r.content, r.headers[pda_replay.HEADER]))
+        assert answers == [
+            (b"not started", "hit"),
+            (b"started", "hit"),
+            (b"started", "state"),
+            (b"hit 1", "hit"),
+            (b"hit 1", "state"),
+        ]
+        assert '"state"' in (tmp_path / "misses.jsonl").read_text()
 
 
 async def test_replay_keeps_prefetches_apart_from_page_loads(replay):
