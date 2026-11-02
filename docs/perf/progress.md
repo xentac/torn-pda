@@ -18,7 +18,8 @@ Last update: 2026-11-02 (fifth session).
   only on `loader.php`), the `getUrl()` per progress event, the repeated
   `endRefreshing()`, the attack condition, the terminal listener
   (`listen: false`, 500 entries at most) and the show-case timer. PR #501
-  now has only a counter on top of their travel check. See "Next steps".
+  had only a counter on top of their travel check, and was merged on
+  2026-11-02. See "Next steps".
 - Branch `perf/analysis`, based on `origin/develop` at `610af44f` since the
   rebase on 2026-11-02 (fifth session). The branch before the rebase is the
   local `perf/analysis-pre-610af44f`. The rebased profile build is
@@ -348,7 +349,7 @@ table when a PR is opened, changed or closed.
 
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
-| A1 1.1, travel check counter | none (upstream did 1.1) | `travel-check-observer` (commit `b47209b0`, from local `travel-check-counter`) | [#501](https://github.com/Manuito83/torn-pda/pull/501) | Open. Reduced to the counter on 2026-11-02. The maintainer plans to merge it. |
+| A1 1.1, travel check counter | none (upstream did 1.1) | `travel-check-observer` (commit `b47209b0`, from local `travel-check-counter`) | [#501](https://github.com/Manuito83/torn-pda/pull/501) | Merged on 2026-11-02 as `9b690feb`. The maintainer then shortened its two comments (`34594b4c`). Keep comments in upstream branches to a few words. |
 
 To see the state of all PRs:
 
