@@ -216,8 +216,8 @@ with `MAESTRO_CLI_NO_ANALYTICS=1`.
    It clears the app, makes PDA the app for torn.com links and enters the
    key. Then it opens the faction page and a profile once, and closes the
    first-run tips. Last, it opens `tornpda://pda-replay.invalid/blank`. The
-   replay proxy answers this blank page itself. Thus no Torn page is open when
-   a test starts. Then it saves the emulator snapshot `replay-ready`. PDA's own tips are invisible to Maestro,
+   replay proxy answers this blank page itself. Thus, at the start of a test,
+   no Torn page is open. Then it saves the emulator snapshot `replay-ready`. PDA's own tips are invisible to Maestro,
    so the script closes them with `adb` and checks that none is left.
 
 2. Run a test:
@@ -229,9 +229,9 @@ with `MAESTRO_CLI_NO_ANALYTICS=1`.
    It loads the snapshot, sets the clock to the first request of the first
    recording, starts the replay proxy, and runs the flow. The results go to
    `$PDA_REC_DIR/runs/<time>-<flow>/`. The folder has the miss log, the proxy
-   log, the Maestro output with screenshots and logcat. It also has the
-   `PDA-PERF` lines from a `PDA_PERF` build (`perf.txt`), the run settings
-   (`env.json`) and the test result (`status`). `env.json` names the
+   log, the Maestro output with screenshots and logcat. With a `PDA_PERF`
+   build, it also has the `PDA-PERF` lines (`perf.txt`). The run settings
+   are in `env.json`, and the test result is in `status`. `env.json` names the
    checkout (`pda_commit`), so build the installed APK from that checkout. Set `PDA_APK` to install a build first. App data stays.
 
 3. Run a flow several times for a speed baseline:
@@ -246,6 +246,20 @@ with `MAESTRO_CLI_NO_ANALYTICS=1`.
    the emulator command from the dev shell, and set `LD_LIBRARY_PATH` for the
    host GL drivers. Then summarize the runs with `tools/perf/summarize.py`
    (see `docs/perf/measurement.md`).
+
+4. To compare two builds, give both APK files in `PDA_APKS`. Name each file
+   after its build, for example its commit:
+
+   ```sh
+   PDA_APKS="apks/50a4a3d9.apk apks/1a2b3c4d.apk" tools/replay/run-baseline.sh tools/replay/flows/attack.yaml 8 "$PDA_REC_DIR/anon/attack.mitm" "$PDA_REC_DIR/anon/onboarding.mitm"
+   ```
+
+   `RUNS` is then the number of runs for each build. The builds take turns
+   in the order A, B, B, A, A, B, because the emulator gets faster or slower
+   during a session. Each run installs its APK over the snapshot's app,
+   keeps the app data and starts PDA again. The run folder name and
+   `pda_commit` in `env.json` get the build name. `env.json` also gets
+   `apk_sha256`, the start of the hash of the installed APK.
 
 Known differences from the capture: Torn's pages keep some view state in the
 browser's local storage, and the snapshot does not have it. An example is

@@ -87,7 +87,27 @@ To make a baseline from several runs of one flow, run:
 tools/perf/summarize.py ~/pda-recordings/runs/*-faction -o baseline-faction.json
 ```
 
-The script joins the parts of each record and groups the records by page (the URL without host, fragment and IDs). For each number in the records, it writes the median, p25, p75, min and max over the runs. If the runs have different `env.json` values, the script stops.
+The script joins the parts of each record and groups the records by page (the URL without host, fragment and IDs). For each number in the records, it writes the median, p25, p75, min and max over the runs, and the per-run values. If the runs have different `env.json` values, the script stops.
+
+### Comparing two builds
+
+The emulator drifts during a session. In one session, the same build got 10 % faster from the first runs to the last runs. Thus do not run the old build first and the new build after it. Run them in alternation in one session, with `PDA_APKS` (see `tools/replay/README.md`). Each run folder name then ends in the build name.
+
+1. Summarize the runs of each build:
+
+   ```bash
+   tools/perf/summarize.py ~/pda-recordings/runs/*-attack-50a4a3d9 -o old.json
+   ```
+
+2. Summarize the runs of the new build, and compare them with the old summary. Name the metric that the fix must change with `--metric`:
+
+   ```bash
+   tools/perf/summarize.py ~/pda-recordings/runs/*-attack-1a2b3c4d -o new.json --compare old.json --metric dart.cb.onLoadStop.wallMs
+   ```
+
+For each page, the comparison shows the old and the new median with p25 to p75, the change, and a p-value. The p-value comes from a rank test (Mann-Whitney) on the per-run values. A change with p < 0.05 is marked `higher` or `lower`. The script tests only the main metrics and the `--metric` names. A page has about 80 metrics, and a test at p < 0.05 marks about 4 of them on two identical builds. `--all` also lists the other metrics with p < 0.05, without a mark. Read them as leads, not as results.
+
+With 4 runs per build, the smallest possible p-value is 0.029. Use at least 6 runs per build. If the two summaries come from different recordings, the script stops. If other `env.json` values differ, for example the WebView version, it prints a warning.
 
 ## 3. Whole-app bench (adb)
 
