@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-02 (sixth session).
+Last update: 2026-11-02 (seventh session).
 
 ## State
 
@@ -38,14 +38,16 @@ Last update: 2026-11-02 (sixth session).
   `610af44f`) describes the strict certificate check, and it is on the
   fork. The user can choose to reword it, so that it says nothing about
   the old behavior.
-- APKs in `~/pda-recordings/apks/`: `50a4a3d9` (old base, before
-  `610af44f`), `d4a7dbad` (`develop` at `610af44f` with the hooks, without
-  #501), `8f24d8e4` (`d4a7dbad` with the `TickerMode` change, only for
-  the frame measurement). The current `perf/analysis` (`develop` at
-  `34594b4c`) has no APK yet.
-- Since the sixth session, `perf/analysis` has three commits that are
-  not on the fork (the frame notes and the `dismiss-tips.yaml` change).
-  Ask before you push.
+- These APKs are in `~/pda-recordings/apks/`:
+  - `50a4a3d9`: the old base, before `610af44f`.
+  - `d4a7dbad`: `develop` at `610af44f` with the hooks, without #501.
+  - `8f24d8e4`: `d4a7dbad` with the `TickerMode` change. It is only for
+    the frame measurement.
+  - `5dad324a`: `perf/analysis` on `develop` at `34594b4c`. It was built
+    in the seventh session.
+- Since the sixth session, `perf/analysis` has five commits that are
+  not on the fork (the frame notes, the `dismiss-tips.yaml` change and
+  the clean A1 run). Ask before you push.
 - The report is published as a shared artifact:
   https://claude.ai/artifact/GCojySixXsQJxfYYTqNxfK (version 13). The source is
   `report.md`.
@@ -387,39 +389,26 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    changelog dialog (see "The 60 frames each second").
    `dismiss-tips.yaml` now closes the changelog. The maintainer makes
    the `TickerMode` change upstream, so there is no PR from us. The local
-   branch `perf/drawer-tickermode` was only for the measurement. Delete
-   it after the clean A1 run.
+   branch `perf/drawer-tickermode` was only for the measurement. You can
+   delete it now.
 
-   Next task (the user chose it): the clean A1 run. The A1 numbers in
-   "A1 after the maintainer's commit 610af44f" come from runs with the
-   changelog open under the browser, so their frame and lag numbers are
-   wrong. Do this:
+   Done in the seventh session: the clean A1 run, with `5dad324a.apk`
+   against `50a4a3d9.apk`. The numbers are in "A1 after the maintainer's
+   commit 610af44f". The user has the numbers.
 
-   - Build a profile APK of `perf/analysis` with the usual flags (see
-     item 1). The doc commits do not change `lib/`, so name the APK
-     after the last commit that changed `lib/`
-     (`git log -1 --format=%h -- lib`), and write the name down here.
-     Copy it out of `build/` at once.
-   - Before the session, make sure that no emulator, `mitmdump` or
-     `run-test.sh` is left (`adb get-state`, `pgrep -af mitmdump`).
-     The user can change the sway window rules for the emulator first.
-     If the emulator window becomes hidden (another workspace or the
-     scratchpad), all runs of the session must have the same setting.
-   - Run 8 attack runs of `50a4a3d9` and the new APK, alternated, with
-     the command in item 1. It takes about 25 minutes. Run it in the
-     background.
-   - Make sure that the changelog closed in the new build's runs: the
-     Maestro log has "Tap on \"Great!.*\"... COMPLETED", and
-     `dart.frames.n` is under 150 per page.
-   - Compare with `summarize.py --compare` and these metrics:
-     `dart.frames.n`, `dart.lag.totalMs`, `dart.frames.rasterOver16`,
-     `dart.cb.onLoadStop.wallMs`. In zsh, give the `--metric` flags and
-     the run folders as arrays, not as one variable.
-   - Replace the table and the frame text in "A1 after the maintainer's
-     commit 610af44f" with the new numbers. One open question to check:
-     `onLoadStop` on the attack page rose from 26 to 49 ms in the
-     sixth session, also with the `TickerMode` build.
-   - Then do the two items below ("Still to do from this list"), and tell
+   Lessons from the run:
+
+   - The run folders of all sessions are in `~/pda-recordings/runs/`.
+     For `50a4a3d9`, earlier sessions left 32 more folders there. Give
+     `summarize.py` only the folders of this session, by their times.
+   - `run-baseline.sh` alternates the builds in pairs (A B B A A B B A),
+     not one by one.
+
+   Next tasks:
+
+   - Find the cause of the longer `onLoadStop` in the new build. It is
+     34 to 48 ms longer on the profile page and the attack log.
+   - Then do the two items below ("Still to do from this list"). Tell
      the user the numbers before anything goes to the maintainer.
    - Later: the new `develop` makes requests that the recordings do not
      have (`tchat/settings`, `tchat/rooms/tokens`,
@@ -508,41 +497,50 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 
 ### A1 after the maintainer's commit 610af44f
 
-Measured on 2026-11-02: 8 runs of each build on the attack flow,
-alternated in one session, all 16 passed. Old build `50a4a3d9.apk` (our
-base before `610af44f`), new build `d4a7dbad.apk` (`perf/analysis` rebased
-on `610af44f`, without #501). The summaries and the comparison are in
+The clean run is from 2026-11-02 (seventh session). It has 8 runs of each
+build on the attack flow, alternated in one session. All 16 runs passed.
+The old build is `50a4a3d9.apk`, our base before `610af44f`. The new
+build is `5dad324a.apk`, `perf/analysis` on `develop` at `34594b4c`. It
+has #501. The changelog closed in all 8 runs of the new build, and each
+page had 44 to 104 frames. The summaries and the comparison are in
+`~/pda-recordings/comparisons/a1-clean-5dad324a-vs-50a4a3d9/`.
+
+| Page | `getHtml` | `setState` | `frames.n` | `lag.totalMs` | `onLoadStop` ms | `nav.load` ms |
+|---|---|---|---|---|---|---|
+| `profiles.php?XID=N` | 15.5 to 3 | 77.5 to 6 | 90.5 to 98.5 (p 0.12) | 898 to 659 (p 0.028) | 139 to 187 (p 0.028) | 1193 to 1168 (p 0.88) |
+| `page.php?sid=attack` | 15 to 2 | 26.5 to 6 | 36.5 to 47 (p < 0.001) | 825 to 707 (p < 0.001) | 35 to 42 (p 0.51) | 898 to 911 (p 0.28) |
+| `page.php?sid=attackLog` | 12 to 2 | 62.5 to 6 | 60.5 to 65 (p 0.020) | 303 to 328 (p 0.96) | 64 to 98 (p 0.038) | 1215 to 1239 (p 0.44) |
+
+The `getHtml` and `setState` changes have p < 0.001. The A1 targets for
+`setState` (under 10) are met on all three pages. The target for
+`getHtml` (at most 2) is met on the attack pages. The profile page has 3.
+`dart.frames.rasterOver16` stays at 0 or 1 on all pages. `lag.over50` on
+the attack page fell from 1 to 0 (p 0.012). The page load times did not
+change.
+
+The 60 frames each second of the first A1 run are gone. They came from
+the changelog, not from the browser (see "The 60 frames each second").
+The attack page now draws about 10 frames more than the old build, and
+the attack log about 5 more. Each frame is cheap: the total Dart lag is
+14 % lower on the attack page and 27 % lower on the profile page.
+
+One open lead: `onLoadStop` takes longer in the new build. It rose by
+48 ms on the profile page and by 34 ms on the attack log, both with
+p < 0.05. On the attack page, the rise (35 to 42 ms) is not significant
+in this run. In the sixth session, it was 26 to 49 ms with p 0.005, so
+the attack page result is not stable. The new build makes requests that
+the recordings do not have (see "State"). A part of the `onLoadStop`
+time can come from them. Find the cause before the numbers go to the
+maintainer.
+
+In this run, both builds write the same records for the profile page:
+the probe record is final, and the Dart record ends at the next page
+load. Thus the profile page's time metrics are comparable. In the first
+A1 run, they were not.
+
+The first A1 run, with `d4a7dbad.apk`, had the changelog open under the
+browser. Its frame and lag numbers are wrong. Its files are in
 `~/pda-recordings/comparisons/a1-develop-d4a7dbad-vs-50a4a3d9/`.
-
-| Page | `getHtml` | `setState` | `WebViewProvider.notify` | `lag.over50` | `nav.load` ms |
-|---|---|---|---|---|---|
-| `profiles.php?XID=N` | 15 to 3 | 83.5 to 6 | 5 to 4 | 3 to 2.5 (p 0.72) | 1184 to 1205 (p 0.82) |
-| `page.php?sid=attack` | 15 to 2 | 27 to 6 | 2 to 3 | 1 to 0 (p 0.008) | 903 to 908 (p 0.11) |
-| `page.php?sid=attackLog` | 12 to 2 | 61 to 6 | 2 to 3 | 0 to 0 | 1204 to 1224 (p 0.80) |
-
-All count changes have p < 0.01. The A1 targets for `setState` (under 10)
-are met on all three pages. The target for `getHtml` (at most 2) is met
-on the attack pages, and the profile page has 3. `onProgressChanged`
-fell from 11 to 146 ms of Dart time per page to 1 to 3 ms, and
-`onLoadStart` from 48 to 74 ms to under 1 ms. The page load times did
-not change.
-
-A lead to explain before the numbers go to the maintainer:
-`dart.frames.n` rose from 35 to 98 frames per page record to about 600
-on every page, and `dart.lag.totalMs` rose by 46 to 131 %. 600 frames in
-a 10 s record is about 60 frames each second, so in the new build
-something draws a frame all the time, even on a page that does not
-change. Each frame is cheap (`frames.uiAvgMs` 0.2 to 0.5 ms), but
-`frames.rasterOver16` rose too. The cause is not known yet. Candidates
-are new animations in `610af44f`, for example in the chat or the browser
-bar. `onLoadStop` also takes longer (30 to 64 ms on the attack page,
-148 to 226 ms on the profile page). The new build also makes requests
-that the recordings do not have (see "State"), so part of the timing
-changes can come from them.
-
-On the new build, the profile page has a full record (`final` 0), not
-the `pagehide` record. Thus the profile page's time metrics are not
-comparable between the two builds.
 
 ### The 60 frames each second
 
