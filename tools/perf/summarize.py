@@ -113,6 +113,10 @@ def run_metrics(run: Path) -> dict[str, dict[str, float]]:
         name = page if n == 1 else f"{page} #{n}"
         flat: dict[str, float] = {}
         flatten(rec, "", flat)
+        # probeStart counts from the navigation start, so it includes the server time.
+        # The injection delay is the time after the first byte.
+        if "probeStart" in flat and "nav.ttfb" in flat:
+            flat["injectAfterTtfb"] = round(flat["probeStart"] - flat["nav.ttfb"], 1)
         pages.setdefault(name, {}).update({f"{kind}.{k}": v for k, v in flat.items()})
     return pages
 
@@ -178,7 +182,7 @@ def main():
     print(f"{len(per_run)} runs, written to {args.output}")
     for page, metrics in baseline["pages"].items():
         print(f"\n{page}")
-        for metric in ("probe.nav.load", "probe.probeStart", "probe.bridge.firstAt", "dart.counts.getHtml",
+        for metric in ("probe.nav.load", "probe.injectAfterTtfb", "probe.bridge.firstAt", "dart.counts.getHtml",
                        "dart.counts.setState", "dart.lag.over50"):
             s = metrics.get(metric)
             if s:
