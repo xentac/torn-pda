@@ -80,6 +80,11 @@ API_KEY_RE = re.compile(r"(?:[?&]key=|ApiKey\s+|\"key\"\s*:\s*\")([A-Za-z0-9]{16
 NAME_BEFORE_ID_RE = re.compile(r"([A-Za-z0-9_-]{1,20}) \[(\d{1,8})\]")
 NAME_IN_PROFILE_LINK_RE = re.compile(r"(profiles\.php\?XID=(\d{1,8})[^>]*>)([A-Za-z0-9_-]{1,20})(<)")
 NAME_KEYS = ("name", "playername", "player_name", "username")
+FACTION_ID_KEYS = ("factionID", "faction_id", "factionId")
+FACTION_TAG_KEYS = ("factiontag", "faction_tag", "factionTag", "tag")
+FACTION_TAG_RE = re.compile(r"[A-Za-z0-9]{2,5}")
+WORD_RE = re.compile(r"[A-Za-z0-9_-]{3,20}")
+ANY_NAME_RE = re.compile(r"(?<![A-Za-z0-9_-])([A-Za-z0-9_-]{3,20})(?![A-Za-z0-9_-])")
 PLAYER_ID_KEYS = ("player_id", "user_id", "userID", "playerID", "userId")
 # Keys that player objects have and item or faction objects do not.
 PLAYER_HINT_KEYS = ("last_action", "level")
@@ -267,6 +272,11 @@ class Anonymizer:
             self.m.number("factions", self.faction_id, force=True)
         if self.faction_name:
             self.literals[self.faction_name] = "Example Faction"
+            self.literals.setdefault(self.faction_name.lower(), "example faction")
+            self.literals.setdefault(self.faction_name.upper(), "EXAMPLE FACTION")
+        # Words in Torn's own scripts and styles. A player name that is also such a
+        # word is replaced only in the places where names usually stand.
+        self.code_words: set[str] = set()
         self._compiled = None
 
     # Pass 1 -------------------------------------------------------------------
@@ -313,10 +323,17 @@ class Anonymizer:
                 self.m.number("ids", pid)
                 self._other_name(name)
         for msg in _messages(flow):
-            if "json" in msg.headers.get("content-type", "").lower():
-                t = _text_of(msg)
+            ctype = msg.headers.get("content-type", "").lower()
+            t = _text_of(msg)
+            if not t:
+                continue
+            if "javascript" in ctype or "css" in ctype:
+                self.code_words.update(WORD_RE.findall(t))
+                continue
+            # Torn sends some JSON as text/html, for example the faction war data.
+            if "json" in ctype or t.lstrip()[:1] in ("{", "["):
                 try:
-                    data = json.loads(t) if t else None
+                    data = json.loads(t)
                 except ValueError:
                     data = None
                 self._json_players(data, None)
@@ -333,6 +350,12 @@ class Anonymizer:
         if pid is None and key is not None and str(key).isdigit() and any(k in obj for k in PLAYER_HINT_KEYS):
             pid = str(key)
         name = next((obj[k] for k in NAME_KEYS if isinstance(obj.get(k), str)), None)
+        fid = next((str(obj[k]) for k in FACTION_ID_KEYS if isinstance(obj.get(k), (int, str))), None)
+        if self.faction_id and fid == self.faction_id:
+            for k in FACTION_TAG_KEYS:
+                # A tag is at most 5 letters or digits. Other "tag" fields hold image URLs.
+                if isinstance(obj.get(k), str) and FACTION_TAG_RE.fullmatch(obj[k]):
+                    self.literals.setdefault(obj[k], "EXF")
         if pid and pid.isdigit():
             self.m.number("ids", pid)
             if name:
@@ -368,6 +391,9 @@ class Anonymizer:
         # One generic pattern and a dict lookup. An alternation of thousands of names
         # would be tried at every position of every body.
         names_re = re.compile(r"(?<![A-Za-z0-9_-])([A-Za-z0-9_-]{3,20})(?=\s*\[\d|</a>|\")") if other else None
+        # Names that are not words in Torn's code are replaced everywhere, for
+        # example in a page title ("Name's Profile") or in an image's alt text.
+        self._anywhere = {k: v for k, v in other.items() if k not in self.code_words}
         id_ctx = "|".join(f"(?:{c})" for c in ID_CONTEXTS)
         fac_ctx = "|".join(f"(?:{c})" for c in FACTION_CONTEXTS)
         free = {k: v for k, v in self.m.tables["ids"].items() if len(k) >= MIN_FREE_ID_LEN}
@@ -396,6 +422,8 @@ class Anonymizer:
             text = lit_re.sub(lambda mo: lit[mo.group(0)], text)
         if names_re:
             text = names_re.sub(lambda mo: other.get(mo.group(1), mo.group(1)), text)
+            anywhere = self._anywhere
+            text = ANY_NAME_RE.sub(lambda mo: anywhere.get(mo.group(1), mo.group(1)), text)
         text = fac_re.sub(lambda mo: mo.group(1) + facs.get(mo.group(2), mo.group(2)), text)
         text = id_re.sub(lambda mo: mo.group(1) + ids.get(mo.group(2), mo.group(2)), text)
         free = self._free

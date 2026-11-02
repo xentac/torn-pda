@@ -12,7 +12,12 @@ seen several times gets its recorded answers in order. After the last one, it
 keeps getting the last one, so that a second visit to a page still works. The
 replay never goes back in recorded time on one URL: if it already gave a later
 answer for the same URL (other body), the request gets that answer, logged as
-"state". A poll during a fight must see the fight, not a poll from before it. If no
+"state". A poll during a fight must see the fight, not a poll from before it.
+A repeated request gets its next recorded answer only when the replay already
+gave every answer that came between the two in the recording, on the same page
+(host, path and Torn's "sid"). Otherwise it gets the previous answer again,
+logged as "hold". So a list that the page polls changes only after the action
+that changed it in the capture. If no
 recording has the same body, the addon uses a recording with the same URL and
 logs a "loose" match.
 
@@ -53,11 +58,14 @@ class PdaReplay:
         self.cursor: dict[tuple, int] = {}
         # The answer with the latest recorded time that the replay gave, per URL key.
         self.latest: dict[tuple, http.HTTPFlow] = {}
+        # The recorded flows per page, with their match keys, and the ones given so far.
+        self.pages: dict[tuple, list[tuple[float, tuple, str]]] = {}
+        self.served: set[str] = set()
         self.guard: re.Pattern | None = None
         self.first_ts: float | None = None
         # Cookies that the recorded browser sent, per site, such as "torn.com".
         self.cookies: dict[str, dict[str, str]] = {}
-        self.stats = {"hit": 0, "loose": 0, "state": 0, "miss": 0, "blocked": 0}
+        self.stats = {"hit": 0, "hold": 0, "loose": 0, "state": 0, "miss": 0, "blocked": 0}
 
     def load(self, loader):
         loader.add_option("pda_replay", str, "", "Comma-separated anonymized recordings to answer from.")
@@ -71,6 +79,9 @@ class PdaReplay:
         )
         loader.add_option(
             "pda_replay_cookies", bool, True, "Give the client the cookies that the recorded browser sent."
+        )
+        loader.add_option(
+            "pda_replay_log_hits", bool, False, "Also log exact matches in the miss log, to see what a flow did."
         )
         loader.add_option(
             "pda_replay_cert_days", int, 400, "Days before now that generated certificates become valid."
@@ -124,6 +135,8 @@ class PdaReplay:
         self.exact.clear()
         self.cursor.clear()
         self.latest.clear()
+        self.pages.clear()
+        self.served.clear()
         self.cookies.clear()
         self.first_ts = None
         n = 0
@@ -140,7 +153,9 @@ class PdaReplay:
                         jar[name] = value
                     uk = self._url_key(fl.request)
                     self.urls.setdefault(uk, []).append(fl)
-                    self.exact.setdefault((uk, self._body_key(fl.request)), []).append(fl)
+                    ek = (uk, self._body_key(fl.request))
+                    self.exact.setdefault(ek, []).append(fl)
+                    self.pages.setdefault(self._page(fl.request), []).append((fl.request.timestamp_start, ek, fl.id))
                     ts = fl.request.timestamp_start
                     self.first_ts = ts if self.first_ts is None else min(self.first_ts, ts)
                     n += 1
@@ -154,11 +169,37 @@ class PdaReplay:
         self.cursor[cursor_key] = i + 1
         return lst[min(i, len(lst) - 1)]
 
+    @staticmethod
+    def _page(r: http.Request) -> tuple:
+        return (r.pretty_host, r.path.split("?", 1)[0], r.query.get("sid", ""))
+
+    def _previous(self, ek) -> http.HTTPFlow | None:
+        lst = self.exact.get(ek)
+        i = self.cursor.get(("exact", ek), 0)
+        return lst[i - 1] if lst and i > 0 else None
+
+    def _next_exact(self, r: http.Request, ek) -> http.HTTPFlow | None:
+        """The next exact answer, or None while the page has not caught up with the recording."""
+        lst = self.exact.get(ek)
+        if not lst:
+            return None
+        i = self.cursor.get(("exact", ek), 0)
+        if 0 < i < len(lst):
+            before = lst[i - 1].request.timestamp_start
+            after = lst[i].request.timestamp_start
+            for ts, k, fid in self.pages.get(self._page(r), []):
+                if k != ek and before < ts < after and fid not in self.served:
+                    return None
+        return self._next(("exact", ek), lst)
+
     def find(self, r: http.Request) -> tuple[str, http.HTTPFlow | None]:
         uk = self._url_key(r)
         ek = (uk, self._body_key(r))
         kind = "hit"
-        rec = self._next(("exact", ek), self.exact.get(ek))
+        rec = self._next_exact(r, ek)
+        if rec is None:
+            kind = "hold"
+            rec = self._previous(ek)
         if not rec:
             kind = "loose"
             rec = self._next(("url", uk), self.urls.get(uk))
@@ -168,6 +209,7 @@ class PdaReplay:
         if latest and latest.request.timestamp_start > rec.request.timestamp_start:
             return "state", latest
         self.latest[uk] = rec
+        self.served.add(rec.id)
         return kind, rec
 
     # Hooks --------------------------------------------------------------------
@@ -189,7 +231,7 @@ class PdaReplay:
             self._answer_miss(flow, "miss")
             return
         self.stats[kind] += 1
-        if kind in ("loose", "state"):
+        if kind in ("loose", "state") or ctx.options.pda_replay_log_hits:
             self._log(flow, kind)
         delay = self._delay(rec)
         if delay > 0:

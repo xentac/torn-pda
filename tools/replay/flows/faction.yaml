@@ -1,5 +1,9 @@
-# Opens the faction page and waits until Torn's content is there.
+# Repeats the faction capture: the war boxes, then every faction tab with the
+# clicks from the capture.
 # Recording: a capture of your faction page (factions.php?step=your).
+# The names and IDs below are the fake ones in anon/faction.mitm.
+# The faction page never stops moving (timers), so every tap waits at most
+# 500 ms for the screen to settle. Maestro's default wait is much longer.
 appId: com.manuito.tornpda
 ---
 - runFlow: dismiss-tips.yaml
@@ -11,3 +15,111 @@ appId: com.manuito.tornpda
     visible: "Example Faction"
     timeout: 30000
 - takeScreenshot: faction
+# The chain box opens a long list of attacks. Close it again to reach the war box.
+- tapOn:
+    text: "Chain in cooldown.*"
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: "Chain in cooldown.*"
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: "NPO - Strength.*"
+    waitToSettleTimeoutMs: 500
+- openLink: "https://www.torn.com/factions.php?step=your&type=1"
+- extendedWaitUntil:
+    visible:
+      id: "ui-id-2"
+    timeout: 60000
+
+# Info: hold a member's name for the mini profile.
+- tapOn:
+    id: "ui-id-2"
+    waitToSettleTimeoutMs: 500
+- scrollUntilVisible:
+    element: "View profile of Player197094"
+    timeout: 90000
+- longPressOn: "View profile of Player197094"
+- extendedWaitUntil:
+    visible: ".*Player197094.*"
+    timeout: 10000
+- takeScreenshot: mini-profile
+- scrollUntilVisible:
+    element:
+      id: "ui-id-3"
+    direction: UP
+    timeout: 90000
+
+- tapOn:
+    id: "ui-id-3"
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    id: "ui-id-4"
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    id: "ui-id-5"
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: "(?i)recruiting.*"
+    waitToSettleTimeoutMs: 500
+
+# Upgrades: read three branches.
+- tapOn:
+    id: "ui-id-6"
+    waitToSettleTimeoutMs: 500
+- scrollUntilVisible:
+    element: "Criminality Branch.*"
+    timeout: 60000
+- tapOn:
+    text: "Criminality Branch.*"
+    waitToSettleTimeoutMs: 500
+- scrollUntilVisible:
+    element: "Toleration Branch.*"
+    timeout: 60000
+- tapOn:
+    text: "Toleration Branch.*"
+    waitToSettleTimeoutMs: 500
+- scrollUntilVisible:
+    element: "Excursion Branch.*"
+    timeout: 60000
+- tapOn:
+    text: "Excursion Branch.*"
+    waitToSettleTimeoutMs: 500
+- takeScreenshot: upgrades
+- scrollUntilVisible:
+    element:
+      id: "ui-id-7"
+    direction: UP
+    timeout: 90000
+
+# Armory: it opens on the donate view. Then the weapons, and one weapon in 3D.
+- tapOn:
+    id: "ui-id-7"
+    waitToSettleTimeoutMs: 500
+# On a phone, the armory sections are a dropdown.
+- tapOn:
+    id: "armour-nav-list"
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: "Weapons"
+    waitToSettleTimeoutMs: 500
+- scrollUntilVisible:
+    element: ".*9mm Uzi.*"
+    timeout: 60000
+- tapOn:
+    text: ".*9mm Uzi.*"
+    waitToSettleTimeoutMs: 500
+- takeScreenshot: armory-item
+- scrollUntilVisible:
+    element:
+      id: "ui-id-8"
+    direction: UP
+    timeout: 90000
+
+# Controls: the newsletter.
+- tapOn:
+    id: "ui-id-8"
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: "(?i)newsletter"
+    waitToSettleTimeoutMs: 500
+- takeScreenshot: controls
