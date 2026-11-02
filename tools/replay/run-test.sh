@@ -31,6 +31,7 @@ pkg=$(adb shell dumpsys package "$PDA_APP")
 python3 - "$out/env.json" <<PY
 import json, sys
 json.dump({
+    "pda_commit": "$(git -C "$here" describe --always --dirty)",
     "app_version": "$(grep -m1 -o 'versionName=[^ ]*' <<<"$pkg" | cut -d= -f2)",
     "app_installed": "$(grep -m1 -o 'lastUpdateTime=.*' <<<"$pkg" | cut -d= -f2)",
     "webview": "$(adb shell dumpsys webviewupdate | grep -m1 -o 'Current WebView package.*' | tr -d '\r')",
