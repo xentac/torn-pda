@@ -33,6 +33,7 @@ rewritten, only searched.
 """
 
 import argparse
+import base64
 import hashlib
 import hmac
 import ipaddress
@@ -98,6 +99,9 @@ class IdMap:
         self.tables: dict[str, dict[str, str]] = {
             k: dict(data.get(k, {})) for k in ("ids", "factions", "names", "keys", "cookies", "emails", "ips")
         }
+        # Older versions mapped 0, which Torn sends for "no player" (see number()).
+        for k in ("ids", "factions"):
+            self.tables[k] = {real: fake for real, fake in self.tables[k].items() if real.strip("0")}
         # Every real and fake value, so that a new fake never equals an existing value.
         self._used: set[str] = set()
         for t in self.tables.values():
@@ -135,6 +139,9 @@ class IdMap:
         Numbers shorter than MIN_MAPPED_ID_LEN stay as they are, unless force is set.
         """
         digits = len(real)
+        # Torn sends 0 for "no player" or "no faction". It is never an ID.
+        if real.strip("0") == "":
+            return real
         if digits < MIN_MAPPED_ID_LEN and not force and real not in self.tables[table]:
             return real
 
@@ -189,6 +196,29 @@ def _text_of(msg: http.Message) -> str | None:
         return msg.get_text(strict=True)
     except ValueError:
         return None
+
+
+# A JSON Web Token: base64url header, payload and signature. Torn's websocket
+# login sends one, and its payload holds the player ID.
+JWT_RE = re.compile(r"\b(eyJ[A-Za-z0-9_-]+)\.(eyJ[A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)")
+
+
+def _b64url_decode(s: str) -> str | None:
+    try:
+        return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4)).decode()
+    except ValueError:
+        return None
+
+
+def _b64url_encode(s: str) -> str:
+    return base64.urlsafe_b64encode(s.encode()).decode().rstrip("=")
+
+
+def _jwt_payloads(text: str):
+    for mo in JWT_RE.finditer(text):
+        payload = _b64url_decode(mo.group(2))
+        if payload is not None:
+            yield payload
 
 
 def _messages(flow: http.HTTPFlow):
@@ -361,6 +391,7 @@ class Anonymizer:
             self._build()
         lit_re, lit, names_re, other, fac_re, id_re, free_re = self._compiled
         ids, facs = self.m.tables["ids"], self.m.tables["factions"]
+        text = JWT_RE.sub(self._rewrite_jwt, text)
         if lit_re:
             text = lit_re.sub(lambda mo: lit[mo.group(0)], text)
         if names_re:
@@ -371,6 +402,13 @@ class Anonymizer:
         text = free_re.sub(lambda mo: free.get(mo.group(1), mo.group(1)), text)
         text = IPV4_RE.sub(lambda mo: mo.group(0) if _private_ip(mo.group(0)) else self.m.ip(mo.group(0)), text)
         return text
+
+    def _rewrite_jwt(self, mo: re.Match) -> str:
+        """Rewrites the payload of a token and replaces its signature. The replay does not check it."""
+        payload = _b64url_decode(mo.group(2))
+        if payload is None:
+            return mo.group(0)
+        return ".".join((mo.group(1), _b64url_encode(self.rewrite(payload)), self.m.token("keys", mo.group(3))))
 
     def apply(self, flow: http.HTTPFlow):
         r = flow.request
@@ -426,6 +464,7 @@ class Anonymizer:
         found = []
         id_re = re.compile(r"(?<![\dA-Za-z])" + re.escape(self.own_id) + r"(?![\dA-Za-z])")
         blobs = list(_all_text(flow))
+        blobs += [p for b in blobs for p in _jwt_payloads(b)]
         for msg in _messages(flow):
             if _text_of(msg) is None and msg.raw_content:
                 try:
