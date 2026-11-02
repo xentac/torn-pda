@@ -6,11 +6,25 @@
 # as text. setup.yaml closes them while it builds the snapshot.
 appId: com.manuito.tornpda
 ---
-- runFlow:
-    when:
-      visible: "Great!"
+# A new build shows the changelog a few seconds after the start. Its button
+# reads "Great! (3)" during a countdown and does nothing until it ends. Left
+# open, its animation draws frames under the browser.
+- extendedWaitUntil:
+    visible: "Great!.*"
+    timeout: 15000
+    optional: true
+# A tap during the countdown does nothing, so tap until the dialog closes.
+# The wait takes its full second, because the dialog never stops moving.
+- repeat:
+    times: 15
+    while:
+      visible: "Great!.*"
     commands:
-      - tapOn: "Great!"
+      - tapOn:
+          text: "Great!.*"
+          waitToSettleTimeoutMs: 500
+      - waitForAnimationToEnd:
+          timeout: 1000
 - runFlow:
     when:
       visible: "Swipe right to reveal the sidebar"
