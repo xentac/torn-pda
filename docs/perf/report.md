@@ -235,7 +235,7 @@ This section answers a direct question: is one high-performance interface to the
 One JavaScript module, registered once per tab as a document-start script. It replaces every Dart-side read and every page-reading snippet.
 
 1. Detection. At document start, the module finds the section from `location`. After the DOM is ready, it tests the section against the DOM. It follows `hashchange`, `pushState` and `popstate` for single-page routes.
-2. Extractors. Each section has one extractor that reads only the fields that features need. One shared `MutationObserver` on the document runs the extractors for the active section, batched per animation frame. An extractor reports a fact only after a change of its value.
+2. Extractors. Each section has one extractor that reads only the fields that features need. The module uses observers at two levels. One shared `MutationObserver` on the document watches only `childList`, with no `characterData` and no attributes, and finds the containers that the active section needs. Each container then gets its own small observer, with `characterData` only where a value is text, such as the chain bar or a trade list. Work is batched per animation frame. If the active section has all its containers, the document observer stops until the next route change. An extractor keeps only the last value of each fact, not a copy of the DOM, and it reports a fact only after a change of that value.
 3. Network facts. Where Torn loads data with XHR or `fetch` (trades, vault, jail, bounties, armoury, item search), the module reads the response, not the DOM. It uses the filtered `PerformanceObserver` from 1.5 to learn which request finished, and reads the result once.
 4. Transport. The module sends typed events to Dart through one handler, `pdaPage`, for example `{type: "section", section: "trade"}` or `{type: "travel", abroad: true, country: "mex", stock: [...]}`. Dart keeps the latest facts per tab in a `PageFacts` object. Features listen to the facts that they need.
 5. Selectors in one place. All selectors are in one table in the module. Remote Config can replace the table, so a Torn class change does not need an app release.
@@ -265,7 +265,7 @@ The schema of facts follows from the inventory:
 
 ### Expected effect
 
-On a plain page, the layer removes about 12 `getHtml` calls and all Dart parses. It removes the fixed-delay retries. It uses one observer instead of several. It sends a few small `pdaPage` messages instead of one message per subresource. On section pages, data arrives as soon as Torn renders it, not after a retry delay.
+On a plain page, the layer removes about 12 `getHtml` calls and all Dart parses. It removes the fixed-delay retries. It uses one light document observer and a few small scoped observers, instead of several observers that each watch every text change in the document. It sends a few small `pdaPage` messages instead of one message per subresource. On section pages, data arrives as soon as Torn renders it, not after a retry delay.
 
 Measure with: `counts.getHtml` equals 0, `lag.over50` in the Dart trace, and `bridge.byName` in the probe.
 
