@@ -693,8 +693,7 @@ class WebViewFullState extends State<WebViewFull>
       // From inappwebview 6.2.0-beta.3 textZoom defaults to null and the system scale leaks in
       textZoom: Platform.isAndroid ? _settingsProvider.androidBrowserTextZoom : null,
       contentBlockers: [
-        if (NativeChat.compiled && _webViewProvider.chatHidden(widget.chatRemovalActive))
-          tchatBundleBlocker,
+        if (NativeChat.compiled && _webViewProvider.chatHidden(widget.chatRemovalActive)) tchatBundleBlocker,
       ],
     );
 
@@ -1542,7 +1541,10 @@ class WebViewFullState extends State<WebViewFull>
 
             WebviewHandlers.addChainWebHandler(webview: webViewController!, onScreen: () => _chainWebOnScreen);
 
-            WebviewHandlers.addLocalStorageMeasuredHandler(webview: webViewController!, webViewProvider: _webViewProvider);
+            WebviewHandlers.addLocalStorageMeasuredHandler(
+              webview: webViewController!,
+              webViewProvider: _webViewProvider,
+            );
 
             WebviewHandlers.addToastHandler(webview: webViewController!);
 
@@ -1563,117 +1565,118 @@ class WebViewFullState extends State<WebViewFull>
 
             publishTabState();
           },
-          shouldOverrideUrlLoading: (c, action) => PerfTrace.cb(_tabUid, 'shouldOverrideUrlLoading', () async {
-            final incomingUrl = action.request.url.toString();
+          shouldOverrideUrlLoading: (c, action) =>
+              PerfTrace.cb(_tabUid, 'shouldOverrideUrlLoading', preNav: true, () async {
+                final incomingUrl = action.request.url.toString();
 
-            // Handle external schemes
-            if (!incomingUrl.startsWith("http:") &&
-                !incomingUrl.startsWith("https:") &&
-                !incomingUrl.startsWith("tornpda:")) {
-              try {
-                await launchUrl(Uri.parse(incomingUrl), mode: LaunchMode.externalApplication);
-              } catch (e) {
-                log("Error launching intent: $e");
+                // Handle external schemes
+                if (!incomingUrl.startsWith("http:") &&
+                    !incomingUrl.startsWith("https:") &&
+                    !incomingUrl.startsWith("tornpda:")) {
+                  try {
+                    await launchUrl(Uri.parse(incomingUrl), mode: LaunchMode.externalApplication);
+                  } catch (e) {
+                    log("Error launching intent: $e");
 
-                // Extract the scheme from the URI
-                String errorMessage = "Cannot find a compatible app for this link!";
-                String scheme = Uri.parse(incomingUrl).scheme;
+                    // Extract the scheme from the URI
+                    String errorMessage = "Cannot find a compatible app for this link!";
+                    String scheme = Uri.parse(incomingUrl).scheme;
 
-                if (scheme.isNotEmpty) {
-                  errorMessage = "Cannot find a compatible app for link $scheme:";
+                    if (scheme.isNotEmpty) {
+                      errorMessage = "Cannot find a compatible app for link $scheme:";
+                    }
+
+                    BotToast.showText(
+                      text: errorMessage,
+                      textStyle: const TextStyle(fontSize: 14, color: Colors.white),
+                      contentColor: Colors.orange,
+                      duration: const Duration(seconds: 4),
+                      contentPadding: const EdgeInsets.all(10),
+                      clickClose: true,
+                    );
+                  }
+                  return NavigationActionPolicy.CANCEL;
                 }
 
-                BotToast.showText(
-                  text: errorMessage,
-                  textStyle: const TextStyle(fontSize: 14, color: Colors.white),
-                  contentColor: Colors.orange,
-                  duration: const Duration(seconds: 4),
-                  contentPadding: const EdgeInsets.all(10),
-                  clickClose: true,
-                );
-              }
-              return NavigationActionPolicy.CANCEL;
-            }
+                // Android ignores the answer for iframes
+                if (Platform.isAndroid && !action.isForMainFrame) return NavigationActionPolicy.ALLOW;
 
-            // Android ignores the answer for iframes
-            if (Platform.isAndroid && !action.isForMainFrame) return NavigationActionPolicy.ALLOW;
-
-            if (_settingsProvider.hitInMiniProfileOpensNewTab) {
-              if (await _hitShouldOpenNewTab(c, action)) {
-                return NavigationActionPolicy.CANCEL;
-              }
-            }
-
-            // On Android, if we are in the trade page and the user received an update via
-            // window.location.reload(), we need to reload the page manually
-            // It comes as a standard request (which contains the same URL as the current one)
-            if (Platform.isAndroid &&
-                action.request.url.toString() == _currentUrl &&
-                action.request.url.toString().contains("trade.php") &&
-                action.request.url.toString().contains("step=view")) {
-              _reload();
-            }
-
-            // If a tab is fully locked, cancel navigation
-            // Note: the mini profiles consideration (above) should come first
-            final lockedTabCancels = lockedTabShouldCancelsNavigation(action.request.url);
-            if (lockedTabCancels) return NavigationActionPolicy.CANCEL;
-
-            if (Platform.isAndroid || ((Platform.isIOS || Platform.isWindows) && widget.windowId == null)) {
-              // Userscripts load before webpage begins loading
-              await _ensureHandlersInjected();
-
-              if (action.isForMainFrame && incomingUrl.startsWith("http") && !incomingUrl.endsWith(".user.js")) {
-                await _removeStaleUserScripts(incomingUrl);
-              }
-
-              UnmodifiableListView<UserScript> scriptsToAdd = _userScriptsProvider.getCondSources(
-                url: incomingUrl,
-                pdaApiKey: UserHelper.apiKey,
-                time: UserScriptTime.start,
-              );
-              await _addUserScriptsAvoidDuplicates(scriptsToAdd);
-
-              // DEBUG
-              if (_debugScriptsInjection) {
-                final addList = [];
-                for (final s in scriptsToAdd) {
-                  addList.add(s.groupName);
+                if (_settingsProvider.hitInMiniProfileOpensNewTab) {
+                  if (await _hitShouldOpenNewTab(c, action)) {
+                    return NavigationActionPolicy.CANCEL;
+                  }
                 }
-                log("Added normal scripts in shouldOverride: $addList");
-              }
-            }
 
-            if (incomingUrl.contains("http://")) {
-              _loadUrl(incomingUrl.replaceAll("http:", "https:"));
-              // Only the https copy should load
-              if (Platform.isAndroid && incomingUrl.startsWith("http://")) return NavigationActionPolicy.CANCEL;
-              return NavigationActionPolicy.ALLOW;
-            }
+                // On Android, if we are in the trade page and the user received an update via
+                // window.location.reload(), we need to reload the page manually
+                // It comes as a standard request (which contains the same URL as the current one)
+                if (Platform.isAndroid &&
+                    action.request.url.toString() == _currentUrl &&
+                    action.request.url.toString().contains("trade.php") &&
+                    action.request.url.toString().contains("step=view")) {
+                  _reload();
+                }
 
-            // Profiles images in Torn (also used in the forums) come with a ?v= parameter at the end which makes
-            // the WKWebview download the image instantly (or load a null page if downloads are disabled). So we
-            // just get rid of the ?v= parameter and load it again without it
-            if (incomingUrl.contains("profileimages.torn.com")) {
-              final correctedUrl = incomingUrl.replaceAll(RegExp(r'\?v=\d+'), '');
-              if (incomingUrl != correctedUrl) {
-                // The incomingUrl contains the ?v= part, so we cancel the navigation.
-                _loadUrl(correctedUrl);
-                return NavigationActionPolicy.CANCEL;
-              } else {
-                // The incomingUrl does not contain the ?v= part (probably as we reloaded it), so we allow it.
+                // If a tab is fully locked, cancel navigation
+                // Note: the mini profiles consideration (above) should come first
+                final lockedTabCancels = lockedTabShouldCancelsNavigation(action.request.url);
+                if (lockedTabCancels) return NavigationActionPolicy.CANCEL;
+
+                if (Platform.isAndroid || ((Platform.isIOS || Platform.isWindows) && widget.windowId == null)) {
+                  // Userscripts load before webpage begins loading
+                  await _ensureHandlersInjected();
+
+                  if (action.isForMainFrame && incomingUrl.startsWith("http") && !incomingUrl.endsWith(".user.js")) {
+                    await _removeStaleUserScripts(incomingUrl);
+                  }
+
+                  UnmodifiableListView<UserScript> scriptsToAdd = _userScriptsProvider.getCondSources(
+                    url: incomingUrl,
+                    pdaApiKey: UserHelper.apiKey,
+                    time: UserScriptTime.start,
+                  );
+                  await _addUserScriptsAvoidDuplicates(scriptsToAdd);
+
+                  // DEBUG
+                  if (_debugScriptsInjection) {
+                    final addList = [];
+                    for (final s in scriptsToAdd) {
+                      addList.add(s.groupName);
+                    }
+                    log("Added normal scripts in shouldOverride: $addList");
+                  }
+                }
+
+                if (incomingUrl.contains("http://")) {
+                  _loadUrl(incomingUrl.replaceAll("http:", "https:"));
+                  // Only the https copy should load
+                  if (Platform.isAndroid && incomingUrl.startsWith("http://")) return NavigationActionPolicy.CANCEL;
+                  return NavigationActionPolicy.ALLOW;
+                }
+
+                // Profiles images in Torn (also used in the forums) come with a ?v= parameter at the end which makes
+                // the WKWebview download the image instantly (or load a null page if downloads are disabled). So we
+                // just get rid of the ?v= parameter and load it again without it
+                if (incomingUrl.contains("profileimages.torn.com")) {
+                  final correctedUrl = incomingUrl.replaceAll(RegExp(r'\?v=\d+'), '');
+                  if (incomingUrl != correctedUrl) {
+                    // The incomingUrl contains the ?v= part, so we cancel the navigation.
+                    _loadUrl(correctedUrl);
+                    return NavigationActionPolicy.CANCEL;
+                  } else {
+                    // The incomingUrl does not contain the ?v= part (probably as we reloaded it), so we allow it.
+                    return NavigationActionPolicy.ALLOW;
+                  }
+                }
+
+                // Check for content-type header to prevent loading of non-JS files.
+                // Add anyway if there's no header, as it's probably a userscript.
+                if (_interceptUserScriptUrl(incomingUrl)) {
+                  return NavigationActionPolicy.CANCEL;
+                }
+
                 return NavigationActionPolicy.ALLOW;
-              }
-            }
-
-            // Check for content-type header to prevent loading of non-JS files.
-            // Add anyway if there's no header, as it's probably a userscript.
-            if (_interceptUserScriptUrl(incomingUrl)) {
-              return NavigationActionPolicy.CANCEL;
-            }
-
-            return NavigationActionPolicy.ALLOW;
-          }),
+              }),
           onCreateWindow: (c, request) => PerfTrace.cb(_tabUid, 'onCreateWindow', () async {
             if (!mounted) return true;
             final Uri? requestedUri = request.request.url;
@@ -1722,95 +1725,97 @@ class WebViewFullState extends State<WebViewFull>
           onLoadStart: (c, uri) {
             PerfTrace.navStart(_tabUid, uri.toString());
             PerfTrace.cb(_tabUid, 'onLoadStart', () async {
-            _loadGen++;
-            log("🌐 onLoadStart: $uri", name: "WEBVIEW FULL");
-            if (_markInitialLoadStarted()) return;
-            _loadStartedAt = DateTime.now();
-            _loadStopTime = null;
+              _loadGen++;
+              log("🌐 onLoadStart: $uri", name: "WEBVIEW FULL");
+              if (_markInitialLoadStarted()) return;
+              _loadStartedAt = DateTime.now();
+              _loadStopTime = null;
 
-            // Ignore the parking placeholder; a real page taking over unparks the tab
-            if (_isParkingBlank(uri)) return;
-            if (_isParked && uri != null) _isParked = false;
-            if (uri != null) _latestUrl = uri;
-            _recovery?.onLoadStart();
+              // Ignore the parking placeholder; a real page taking over unparks the tab
+              if (_isParkingBlank(uri)) return;
+              if (_isParked && uri != null) _isParked = false;
+              if (uri != null) _latestUrl = uri;
+              _recovery?.onLoadStart();
 
-            _heightExtendInjected = false;
+              _heightExtendInjected = false;
 
-            // FALLBACK: Always try to force update if reportTabLoadUrl wasn't called recently
-            if (uri != null) {
-              final now = DateTime.now();
-              final lastCallAgo = _lastReportTabLoadUrlTime != null
-                  ? now.difference(_lastReportTabLoadUrlTime!).inSeconds
-                  : 999;
+              // FALLBACK: Always try to force update if reportTabLoadUrl wasn't called recently
+              if (uri != null) {
+                final now = DateTime.now();
+                final lastCallAgo = _lastReportTabLoadUrlTime != null
+                    ? now.difference(_lastReportTabLoadUrlTime!).inSeconds
+                    : 999;
 
-              if (lastCallAgo > 0.5) {
-                // If reportTabLoadUrl wasn't called in the last 0.5 seconds
-                _reportUrlVisit(uri, bypassThrottle: true);
+                if (lastCallAgo > 0.5) {
+                  // If reportTabLoadUrl wasn't called in the last 0.5 seconds
+                  _reportUrlVisit(uri, bypassThrottle: true);
+                }
               }
-            }
 
-            //_loadTimeMill = DateTime.now().millisecondsSinceEpoch;
+              //_loadTimeMill = DateTime.now().millisecondsSinceEpoch;
 
-            _webViewProvider.updateLastTabUse();
-            publishTabState();
+              _webViewProvider.updateLastTabUse();
+              publishTabState();
 
-            _webViewProvider.verticalMenuClose();
-            if (!mounted) return;
+              _webViewProvider.verticalMenuClose();
+              if (!mounted) return;
 
-            // Reset animated progress for new page load
-            setState(() {
-              _animatedProgress.value = 0;
-            });
+              // Reset animated progress for new page load
+              setState(() {
+                _animatedProgress.value = 0;
+              });
 
-            if (Platform.isAndroid) {
-              _revertTransparentBackground();
-            }
+              if (Platform.isAndroid) {
+                _revertTransparentBackground();
+              }
 
-            // Re-register scripts when they were wiped (browser close, renderer crash) and the
-            // reload doesn't trigger shouldOverrideUrlLoading
-            //
-            // We also inject whatever is missing right now. Whatever this one misses
-            // is caught again in onLoadStop
-            if (!_handlersInjected &&
-                uri != null &&
-                (Platform.isAndroid || ((Platform.isIOS || Platform.isWindows) && widget.windowId == null))) {
+              // Re-register scripts when they were wiped (browser close, renderer crash) and the
+              // reload doesn't trigger shouldOverrideUrlLoading
+              //
+              // We also inject whatever is missing right now. Whatever this one misses
+              // is caught again in onLoadStop
+              if (!_handlersInjected &&
+                  uri != null &&
+                  (Platform.isAndroid || ((Platform.isIOS || Platform.isWindows) && widget.windowId == null))) {
+                try {
+                  await _ensureHandlersInjected();
+                  await _addUserScriptsAvoidDuplicates(
+                    _userScriptsProvider.getCondSources(
+                      url: uri.toString(),
+                      pdaApiKey: UserHelper.apiKey,
+                      time: UserScriptTime.start,
+                    ),
+                  );
+                  if (!mounted) return;
+                  await _injectMissingDocumentStartScripts(c, uri.toString(), at: "loadStart");
+                } catch (e) {
+                  log("⚠️ onLoadStart script registration error: $e", name: "WEBVIEW FULL");
+                }
+              }
+
               try {
-                await _ensureHandlersInjected();
-                await _addUserScriptsAvoidDuplicates(
-                  _userScriptsProvider.getCondSources(
-                    url: uri.toString(),
-                    pdaApiKey: UserHelper.apiKey,
-                    time: UserScriptTime.start,
-                  ),
-                );
-                if (!mounted) return;
-                await _injectMissingDocumentStartScripts(c, uri.toString(), at: "loadStart");
+                _currentUrl = uri.toString();
+
+                hideChatOnLoad();
+
+                // Only the old loader check needs it
+                final document = _currentUrl.contains("loader.php")
+                    ? parse(await PerfTrace.getHtml(_tabUid, webViewController))
+                    : null;
+                _assessGeneral(document);
+
+                assessGymAndHuntingEnergyWarning(uri.toString());
+                assessTravelAgencyEnergyNerveLifeWarning(uri.toString());
               } catch (e) {
-                log("⚠️ onLoadStart script registration error: $e", name: "WEBVIEW FULL");
+                // Prevents issue if webView is closed too soon, in between the 'mounted' check and the rest of
+                // the checks performed in this method
               }
-            }
 
-            try {
-              _currentUrl = uri.toString();
-
-              hideChatOnLoad();
-
-              // Only the old loader check needs it
-              final document = _currentUrl.contains("loader.php") ? parse(await PerfTrace.getHtml(_tabUid, webViewController)) : null;
-              _assessGeneral(document);
-
-              assessGymAndHuntingEnergyWarning(uri.toString());
-              assessTravelAgencyEnergyNerveLifeWarning(uri.toString());
-            } catch (e) {
-              // Prevents issue if webView is closed too soon, in between the 'mounted' check and the rest of
-              // the checks performed in this method
-            }
-
-            // Needs to be done as early as possible, but iOS does not like onLoadStart for this script
-            if (Platform.isAndroid) {
-              evaluateGreasyForMockVM(uri, c);
-            }
-          });
+              // Needs to be done as early as possible, but iOS does not like onLoadStart for this script
+              if (Platform.isAndroid) {
+                evaluateGreasyForMockVM(uri, c);
+              }
+            });
           },
           onProgressChanged: (c, progress) => PerfTrace.cb(_tabUid, 'onProgressChanged', () async {
             if (!mounted) return;
@@ -1924,9 +1929,7 @@ class WebViewFullState extends State<WebViewFull>
             }
 
             if (_chainWebAllowed) {
-              c.evaluateJavascript(
-                source: chainWebInject(_webViewProvider.isTabUidOnScreen(_tabUid)),
-              );
+              c.evaluateJavascript(source: chainWebInject(_webViewProvider.isTabUidOnScreen(_tabUid)));
             }
 
             _maybeEnsureMinHeight(c).ignore();
@@ -2017,7 +2020,7 @@ class WebViewFullState extends State<WebViewFull>
                 _addExtraHeightForPullToRefresh();
               }
 
-              final html = await webViewController!.getHtml();
+              final html = await PerfTrace.getHtml(_tabUid, webViewController);
               final document = parse(html);
 
               // Force to show title
@@ -2137,7 +2140,7 @@ class WebViewFullState extends State<WebViewFull>
                 _tradesOnResourceTriggerTime = DateTime.now();
 
                 _tradesTriggered = true;
-                final html = await webViewController!.getHtml();
+                final html = await PerfTrace.getHtml(_tabUid, webViewController);
                 final document = parse(html);
                 final pageTitle = (await _getPageTitle(document))!.toLowerCase();
                 if (Platform.isIOS) {
@@ -2159,7 +2162,7 @@ class WebViewFullState extends State<WebViewFull>
                 _vaultOnResourceTriggerTime = DateTime.now();
 
                 if (!_vaultTriggered) {
-                  final html = await webViewController!.getHtml();
+                  final html = await PerfTrace.getHtml(_tabUid, webViewController);
                   final document = parse(html);
                   final pageTitle = (await _getPageTitle(document))!.toLowerCase();
                   _assessVault(doc: document, pageTitle: pageTitle);
@@ -2189,7 +2192,7 @@ class WebViewFullState extends State<WebViewFull>
                   _reportUrlVisit(uri);
                 }
 
-                final html = await webViewController!.getHtml();
+                final html = await PerfTrace.getHtml(_tabUid, webViewController);
                 dom.Document document = parse(html);
 
                 late List<dom.Element> query;
@@ -2201,7 +2204,7 @@ class WebViewFullState extends State<WebViewFull>
                   } else {
                     await Future.delayed(const Duration(seconds: 1));
                     if (!mounted) break;
-                    final updatedHtml = await webViewController!.getHtml();
+                    final updatedHtml = await PerfTrace.getHtml(_tabUid, webViewController);
                     document = parse(updatedHtml);
                   }
                 }
@@ -2225,7 +2228,7 @@ class WebViewFullState extends State<WebViewFull>
                   _reportUrlVisit(uri);
                 }
 
-                final html = await webViewController!.getHtml();
+                final html = await PerfTrace.getHtml(_tabUid, webViewController);
                 dom.Document document = parse(html);
 
                 late List<dom.Element> query;
@@ -2237,7 +2240,7 @@ class WebViewFullState extends State<WebViewFull>
                   } else {
                     await Future.delayed(const Duration(seconds: 1));
                     if (!mounted) break;
-                    final updatedHtml = await webViewController!.getHtml();
+                    final updatedHtml = await PerfTrace.getHtml(_tabUid, webViewController);
                     document = parse(updatedHtml);
                   }
                 }
@@ -2736,7 +2739,7 @@ class WebViewFullState extends State<WebViewFull>
         return false;
       }
 
-      final html = await webViewController?.getHtml();
+      final html = await PerfTrace.getHtml(_tabUid, webViewController);
       if (html == null || html.isEmpty) return false;
       final document = parse(html);
       final miniProfile = document.querySelector("[class*='profile-mini-_wrapper_']");
@@ -2975,7 +2978,7 @@ class WebViewFullState extends State<WebViewFull>
     }
 
     if (document == null) {
-      final html = await webViewController?.getHtml();
+      final html = await PerfTrace.getHtml(_tabUid, webViewController);
       if (html == null || html.isEmpty) return;
       document = parse(html);
     }
@@ -3018,7 +3021,7 @@ class WebViewFullState extends State<WebViewFull>
       _webViewProvider.loginErrorRetrySeconds++;
       await Future.delayed(Duration(seconds: _webViewProvider.loginErrorRetrySeconds));
 
-      final newDoc = parse(await webViewController!.getHtml());
+      final newDoc = parse(await PerfTrace.getHtml(_tabUid, webViewController));
       if (newDoc.querySelectorAll("[class*='logInWrap_']").isEmpty ||
           newDoc.body!.innerHtml.contains("failures from your IP address")) {
         return;
@@ -3629,15 +3632,17 @@ class WebViewFullState extends State<WebViewFull>
       final Map<String, dynamic> page = jsonDecode(raw);
       if (page["ready"] != "complete") return null;
       final List points = page["points"];
-      final Map? native = await _nativeChannel.invokeMethod<Map>("probeWebViewPixels", {
-        "left": origin.dx.round(),
-        "top": origin.dy.round(),
-        "width": size.width.round(),
-        "height": size.height.round(),
-        "points": [
-          for (final point in points) ...[(point[0] as num).toDouble(), (point[1] as num).toDouble()],
-        ],
-      }).timeout(const Duration(seconds: 3));
+      final Map? native = await _nativeChannel
+          .invokeMethod<Map>("probeWebViewPixels", {
+            "left": origin.dx.round(),
+            "top": origin.dy.round(),
+            "width": size.width.round(),
+            "height": size.height.round(),
+            "points": [
+              for (final point in points) ...[(point[0] as num).toDouble(), (point[1] as num).toDouble()],
+            ],
+          })
+          .timeout(const Duration(seconds: 3));
       final List? pixels = native?["pixels"];
       if (native == null || pixels == null || pixels.length != points.length) return null;
 
@@ -3935,8 +3940,7 @@ class WebViewFullState extends State<WebViewFull>
       const attackUrl = 'page.php?sid=attack&user2ID=';
       const attackUrl2 = 'loader2.php?sid=getInAttack&user2ID=';
       final onAttack = _currentUrl.contains(attackUrl) || _currentUrl.contains(attackUrl2);
-      if ((!onAttack && _attackTriggered) ||
-          (onAttack && (!_attackTriggered || _currentUrl != _lastProfileVisited))) {
+      if ((!onAttack && _attackTriggered) || (onAttack && (!_attackTriggered || _currentUrl != _lastProfileVisited))) {
         anySectionTriggered = true;
         getAttack = true;
       }
@@ -3945,7 +3949,7 @@ class WebViewFullState extends State<WebViewFull>
     if (anySectionTriggered) {
       dom.Document doc;
       var pageTitle = "";
-      final html = await webViewController!.getHtml();
+      final html = await PerfTrace.getHtml(_tabUid, webViewController);
       if (html == null) return;
 
       doc = parse(html);
@@ -4243,7 +4247,7 @@ class WebViewFullState extends State<WebViewFull>
     // Try to get the page title after the section loads
     if (_currentUrl.contains('trade') && pageTitle.isEmpty) {
       await Future.delayed(const Duration(milliseconds: 1500));
-      final html = await webViewController!.getHtml();
+      final html = await PerfTrace.getHtml(_tabUid, webViewController);
       document = parse(html);
       pageTitle = (await _getPageTitle(document))!.toLowerCase();
     }
@@ -4265,7 +4269,7 @@ class WebViewFullState extends State<WebViewFull>
 
       // This is a trade that was just finished (step=view instead of step=logview)
       // We hide the widget to avoid sides getting mixed up
-      String? html = await webViewController!.getHtml();
+      String? html = await PerfTrace.getHtml(_tabUid, webViewController);
       if (html != null && html.contains("The trade was accepted by")) {
         final nameBar = document.querySelector(".right .title-black")?.innerHtml ?? "";
         if (nameBar.contains("items traded")) {
@@ -4321,7 +4325,7 @@ class WebViewFullState extends State<WebViewFull>
     try {
       if (totalFinds.isEmpty) {
         await Future.delayed(const Duration(milliseconds: 1500));
-        final updatedHtml = await webViewController!.getHtml();
+        final updatedHtml = await PerfTrace.getHtml(_tabUid, webViewController);
         final updatedDoc = parse(updatedHtml);
         document = updatedDoc;
       }
@@ -4508,7 +4512,7 @@ class WebViewFullState extends State<WebViewFull>
           _assessTrades(doc, pageTitle);
         } else {
           _currentUrl = (await webViewController!.getUrl()).toString();
-          final html = await webViewController!.getHtml();
+          final html = await PerfTrace.getHtml(_tabUid, webViewController);
           final d = parse(html);
           final t = (await _getPageTitle(d))!.toLowerCase();
           _assessTrades(d, t);
@@ -4565,7 +4569,7 @@ class WebViewFullState extends State<WebViewFull>
       } else {
         await Future.delayed(const Duration(milliseconds: 500));
         if (!mounted) break;
-        final updatedHtml = await webViewController!.getHtml();
+        final updatedHtml = await PerfTrace.getHtml(_tabUid, webViewController);
         doc = parse(updatedHtml);
       }
     }
@@ -4619,7 +4623,7 @@ class WebViewFullState extends State<WebViewFull>
     _vaultEnabled = await Prefs().getVaultEnabled();
     // Reset _vaultTriggered so that we can call _assessVault() again
     _vaultTriggered = false;
-    final html = await webViewController!.getHtml();
+    final html = await PerfTrace.getHtml(_tabUid, webViewController);
     final document = parse(html);
     final pageTitle = (await _getPageTitle(document))!.toLowerCase();
     _assessVault(doc: document, pageTitle: pageTitle, fromReassess: true);
@@ -5457,7 +5461,7 @@ class WebViewFullState extends State<WebViewFull>
         for (int attempt = 0; attempt < 5; attempt++) {
           await Future.delayed(const Duration(milliseconds: 500));
           if (!mounted) return;
-          final html = await webViewController?.getHtml();
+          final html = await PerfTrace.getHtml(_tabUid, webViewController);
           if (html == null) continue;
           final document = parse(html);
           final h4Elements = document.querySelectorAll('h4');
@@ -6113,7 +6117,7 @@ class WebViewFullState extends State<WebViewFull>
   /// Called from parent though GlobalKey state
   /// Do not call this directly, do it through the webview provider to ensure that the tab is also updated
   Future<void> cancelChainingBrowser() async {
-    final html = await webViewController!.getHtml();
+    final html = await PerfTrace.getHtml(_tabUid, webViewController);
     final dom.Document document = parse(html);
     _pageTitle = await _getPageTitle(document);
     // Reports page title so that tab names are updated immediately
