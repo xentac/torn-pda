@@ -204,7 +204,7 @@ Measure with: `res.lastEnd` and `nav.load` in the probe, with chat hidden and sh
 | Section reads use retry loops. Trades make 2 to 4 copies per trigger, on every `trade.php` resource. The vault makes up to 11 copies. Jail and bounties make 1 to 3 copies, only to test that a list exists. City items poll up to 30 times. A profile by name makes up to 6 copies, and the travel agency makes 5. | These pages | The page data layer. |
 | With the cache turned off, `cacheMode` is `LOAD_NO_CACHE` and each new WebView clears the cache. | Users who turned the cache off, or the Remote Config value "off" | Ask users with slow loads to make sure that the cache is on. Look at `res.cacheRatio` in the probe. |
 | The Temporary quick items feature installs permanent global `fetch` and XHR wrappers that clone and parse every later response. | Users of that feature | Parse only the responses of the endpoint it needs. |
-| `onScrollChanged` sends a channel message for each scroll offset change. Dart only stores the position for a later restore. | All scrolls | Read the scroll position only for a restore. |
+| `onScrollChanged` sends a channel message for each scroll offset change. Dart only stores the position for a later restore. | All scrolls | The renderer-death restore (`onRenderProcessGone`) needs the last position after the page is gone, so Dart cannot ask for it only at restore time. Keep the last position in the plugin's native view, which receives every change already, and let Dart read it when it needs it. If that is not possible, send at most one message every 250 ms, and one at the end of a scroll. |
 
 ### Tier 3: background and startup
 
