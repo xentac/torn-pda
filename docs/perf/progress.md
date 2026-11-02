@@ -16,7 +16,10 @@ Last update: 2026-11-02 (second session).
 - Track T (record and replay) works from start to finish on the emulator:
   capture, anonymize, snapshot, automated test run. Three flows pass:
   `attack.yaml`, `faction.yaml` and `crimes.yaml`. Track 0 (baseline timing)
-  started: step 1 of "Next steps: the baseline" below is done.
+  started: steps 1 to 5 of "Next steps: the baseline" below are done. Step 6
+  (the baseline runs) is in progress.
+- The user approved the report on 2026-11-02, with the comments answered.
+  Follow the plan until the upstream developer gives feedback.
 - The report also has the URL
   https://claude.ai/code/artifact/7b1f1105-0a76-480b-8da4-f970a44e4532.
   Comments arrive there. Version 5 answers four comments (1.6 storage trim,
@@ -159,7 +162,13 @@ background, and its `getProfileData` request is a miss in every run.
 - Done when a test run has no `profiles.php?step=getProfileData&XID=8810916`
   miss.
 
-### 2. Build the measurement app
+### 2. Build the measurement app (done)
+
+Done on 2026-11-02. The profile build with `PDA_PERF` and `PDA_PROXY` trusts
+the mitmproxy CA, and all three flows pass on it. `replay-ready` is now built
+from this install. Rebuild the APK and the snapshot after each code change.
+
+The original plan:
 
 - Build in profile mode, not debug mode. Debug timings are not useful.
 
@@ -176,7 +185,28 @@ background, and its `getProfileData` request is a miss in every run.
 - Done when all three tests pass on the profile build, and `perf.txt` in each
   run folder has `[PDA-PERF-DART]` lines.
 
-### 3. Get the probe into PDA_PERF builds
+### 3. Get the probe into PDA_PERF builds (done)
+
+Done on 2026-11-02. What was found and changed:
+
+- `dart:developer` `log()` never reaches logcat, in any build mode. So the
+  Dart trace was invisible, and PDA's own `log()` lines are too.
+  `PerfTrace.emit` also prints each record.
+- Flutter cuts each logcat line at about 1024 bytes. Records go out in parts
+  of 300 characters: `[PDA-PERF-DART] <id> <part>/<parts> <text>`.
+- `getHandlerSources` puts the probe first in `PDA_PERF` builds.
+  `tools/perf/gen-probe.sh` writes the probe into
+  `lib/utils/perf/probe_source.g.dart`. Run it after each probe change.
+- `onConsoleMessage` sends probe records to `PerfTrace.emit` as
+  `[PDA-PERF-PROBE]`, and not to the terminal.
+- The probe logs its record on `pagehide` if the page is left before 10 s
+  (`final: 1` in the record). Compare such records only with each other.
+- Late callbacks (after a record was written) are counted in `latePrev` of
+  the next record. Before, they made one log line each, 700 in one faction
+  run.
+- `run-test.sh` waits 12 s after the flow, so the last page has its record.
+
+The original plan:
 
 Most targets in the report come from the page probe
 (`tools/perf/pda-perf-probe.user.js`), for example `probeStart`,
@@ -196,7 +226,11 @@ and only in `PDA_PERF` builds. See also `docs/perf/measurement.md`, section
 - Done when a test run's `perf.txt` has one probe record for each page load
   in the flow.
 
-### 4. Write a summary script
+### 4. Write a summary script (done)
+
+Done: `tools/perf/summarize.py`. See `docs/perf/measurement.md`, section 2.
+
+The original plan:
 
 Each run leaves raw lines in `perf.txt`. Write a script (for example
 `tools/perf/summarize.py`) that:
@@ -210,7 +244,13 @@ Each run leaves raw lines in `perf.txt`. Write a script (for example
 The flow durations are not a useful metric, because Maestro's waits change
 from run to run. Use the per-page records.
 
-### 5. Choose the run settings and keep them
+### 5. Choose the run settings and keep them (done)
+
+Done: `run-test.sh` writes `env.json` (app version and install time, WebView,
+AVD, snapshot, recordings, `MITM_ARGS`). `summarize.py` refuses runs with
+different values. `run-baseline.sh` uses the recorded latency by default.
+
+The original plan:
 
 - Network timing: use `MITM_ARGS="--set pda_replay_latency=recorded"`, so
   that the pages load at about the speed of the real server. Every comparison
@@ -221,12 +261,38 @@ from run to run. Use the per-page records.
 - Write the WebView version (`adb shell dumpsys webviewupdate`) and the PDA
   commit into the baseline file.
 
-### 6. Run the baseline
+### 6. Run the baseline (in progress)
+
+Use `tools/replay/run-baseline.sh FLOW 8 RECORDINGS...` (see the replay
+README). It boots a new emulator from the snapshot for each run. Started on
+2026-11-02 with 8 runs per flow.
+
+The original plan:
 
 - Run each flow 5 to 10 times with `run-test.sh` and the profile APK.
 - Run the summary script, and save the result as the baseline for the build.
 - If the spread is too large to see a change of about 10%, add runs, or find
   the source of the noise first.
+
+### Lessons from the baseline work
+
+- The emulator crashed (SIGSEGV in `gfxstream ColorBuffer::onLoad`) on the
+  second snapshot load after a boot. The trigger was a snapshot saved 12 s
+  after the blank page loaded. With the save right after the load, six loads
+  in a row passed. `run-baseline.sh` boots a new emulator for each run.
+- Background jobs that are stopped can leave a replay proxy on port 8080, or
+  a test loop that keeps running. Before a new run, make sure that no
+  `mitmdump` or `run-test.sh` process is left.
+- mitmdump buffers its log when the output is a file. `start_proxy` waited
+  for the "listening" line, which came only after traffic. Fixed with
+  `PYTHONUNBUFFERED=1`.
+- One crimes run of six failed: in the middle of the flow, the tab showed
+  the blank start page again. The crimes page wrote no `pagehide` record, so
+  PDA probably replaced the WebView. The blank-page detector and the
+  rebuild of an unresponsive WebView can do that, and they log only with
+  `log()`. Not explained yet.
+- First numbers (8 runs to come): 12 to 15 `getHtml` calls on each attack
+  page, as the report estimated, and about 62 over the whole crimes visit.
 
 ### Later
 
