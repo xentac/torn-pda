@@ -362,8 +362,8 @@ The original plan:
 
 ### Fix 1.1: the travel check (done)
 
-Done on 2026-11-02, on the local branch `perf/a1-travel-check` (not
-pushed). The comparison below measured commit `ec113644`. The last commit
+Done on 2026-11-02, on the branch `perf/a1-travel-check` (on the fork
+since 2026-11-02). The comparison below measured commit `ec113644`. The last commit
 `cef61134` adds only a guard: a check that ends after the next page load
 does not change the status. One attack run on `cef61134.apk` passed, with
 the same `getHtml` counts (4 on the attack page in that run). `assessTravel` no longer copies and parses the page
