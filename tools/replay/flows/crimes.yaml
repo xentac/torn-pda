@@ -1,0 +1,65 @@
+# Repeats the crimes capture: the crimes hub, Search for Cash, Graffiti, two
+# "Collect" actions in Arson, and Cracking.
+# Recording: anon/crimes.mitm. The replay answers the actions from the
+# recording, so nothing happens in the game.
+# The crime pages never stop moving, so every tap waits at most 500 ms for the
+# screen to settle.
+appId: com.manuito.tornpda
+---
+- runFlow: dismiss-tips.yaml
+- openLink: "https://www.torn.com/crimes.php"
+- extendedWaitUntil:
+    visible: "SEARCH FOR CASH"
+    timeout: 60000
+- takeScreenshot: hub
+
+- tapOn:
+    text: "SEARCH FOR CASH"
+    waitToSettleTimeoutMs: 500
+- extendedWaitUntil:
+    visible: ".*Trash.*"
+    timeout: 20000
+- back
+
+- extendedWaitUntil:
+    visible: "GRAFFITI"
+    timeout: 20000
+- tapOn:
+    text: "GRAFFITI"
+    waitToSettleTimeoutMs: 500
+- waitForAnimationToEnd:
+    timeout: 3000
+- back
+
+- scrollUntilVisible:
+    element: "ARSON"
+    timeout: 60000
+- tapOn:
+    text: "ARSON"
+    waitToSettleTimeoutMs: 500
+- scrollUntilVisible:
+    element: "Self Storage Container"
+    timeout: 60000
+- tapOn:
+    text: "Collect.*"
+    rightOf: "Self Storage Container"
+    waitToSettleTimeoutMs: 500
+- scrollUntilVisible:
+    element: "Mechanic Shop"
+    timeout: 60000
+- tapOn:
+    text: "Collect.*"
+    rightOf: "Mechanic Shop"
+    waitToSettleTimeoutMs: 500
+- takeScreenshot: arson
+- back
+
+- scrollUntilVisible:
+    element: "CRACKING"
+    timeout: 60000
+- tapOn:
+    text: "CRACKING"
+    waitToSettleTimeoutMs: 500
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: cracking
