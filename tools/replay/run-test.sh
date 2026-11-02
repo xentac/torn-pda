@@ -49,6 +49,7 @@ json.dump({
     "snapshot": "$PDA_SNAPSHOT",
     "recordings": "$*",
     "mitm_args": "${MITM_ARGS:-}",
+    "static": "$PDA_STATIC",
 }, open(sys.argv[1], "w"), indent=1)
 PY
 # A long flow logs more than the default buffer holds.

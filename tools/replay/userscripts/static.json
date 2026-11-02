@@ -1,0 +1,8 @@
+{
+ "https://pda-replay.invalid/userscripts/perf-start.user.js": "perf-start.user.js",
+ "https://pda-replay.invalid/userscripts/perf-end-all.user.js": "perf-end-all.user.js",
+ "https://pda-replay.invalid/userscripts/perf-end-profile.user.js": "perf-end-profile.user.js",
+ "https://pda-replay.invalid/userscripts/perf-end-page.user.js": "perf-end-page.user.js",
+ "https://pda-replay.invalid/echo.json?from=start": "echo.json",
+ "https://pda-replay.invalid/echo.json?from=end": "echo.json"
+}
