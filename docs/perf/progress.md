@@ -4,10 +4,15 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-02 (fourth session, PR #501 opened).
+Last update: 2026-11-02 (end of the fourth session).
 
 ## State
 
+- Start of a session: read this file, then run
+  `gh pr list -R Manuito83/torn-pda --author xentac --state all` and update
+  the table in "Upstream pull requests".
+- Fix 1.1 of A1 is done and is upstream PR #501 (open). The next fix is 1.3
+  (the progress bar). See "Next steps".
 - Branch `perf/analysis`, based on `origin/develop` at `fe76815d`. It is on
   the fork (`xentac/perf/analysis`) since 2026-11-02. Ask before each push to
   the fork. Never push upstream. Before the first push, one commit was
@@ -381,7 +386,24 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 
    Fix 1.1 of A1 (the travel check) is done, see "Fix 1.1: the travel
    check" below. The next fix is 1.3 (the progress bar), on a new branch
-   from `perf/analysis`. Use `ec113644.apk` as the old build only if the
+   from `perf/analysis`, for example `perf/a1-progress-bar`. Its success
+   metric is `dart.counts.setState` per navigation (25 to 80 now, target
+   under 10 for all of A1). Also compare `counts.WebViewProvider.notify`.
+   Then make the upstream branch from `origin/develop` as for 1.1 (see
+   "Upstream pull requests"). The user writes and posts each PR. Give the
+   user a draft of the PR text in the scratchpad.
+
+   Finding 1.2 (the app reads the page in about 75 places) has no quick
+   fix of its own. Its fix is track P, the page data layer. Two parts of
+   it are smaller: A1 deletes the `onLoadStart` copy, but only after the
+   maintainer says that nothing needs it. `_assessGeneral` runs at both
+   `onLoadStart` and `onLoadStop` and injects some scripts twice. No track
+   names this yet. Ask the maintainer about both.
+
+   The user plans to send the maintainer a first message: the report link,
+   that more small fixes will follow, and the question of one PR per fix or
+   one PR for all of A1. The answer can change how the next branches are
+   cut. Use `ec113644.apk` as the old build only if the
    new branch starts from `perf/a1-travel-check`. Otherwise use
    `50a4a3d9.apk`.
 2. Done: `summarize.py --compare` (see "Comparing two builds" in
