@@ -51,6 +51,9 @@ MIN_COOKIE_LEN = 8
 # Other players' IDs are replaced outside their usual places only when they are
 # this long, so that small numbers in the page do not change by accident.
 MIN_FREE_ID_LEN = 5
+# Numbers shorter than this after "ID=" and similar are page or item numbers more
+# often than player IDs, and a same-length fake has too few choices. They stay as they are.
+MIN_MAPPED_ID_LEN = 4
 
 ID_CONTEXTS = [
     r"XID=",
@@ -89,6 +92,11 @@ class IdMap:
         self.tables: dict[str, dict[str, str]] = {
             k: dict(data.get(k, {})) for k in ("ids", "factions", "names", "keys", "cookies", "emails", "ips")
         }
+        # Every real and fake value, so that a new fake never equals an existing value.
+        self._used: set[str] = set()
+        for t in self.tables.values():
+            self._used.update(t.keys())
+            self._used.update(t.values())
 
     def save(self):
         data = {"salt": self.salt.hex(), **self.tables}
@@ -101,29 +109,28 @@ class IdMap:
     def _digest(self, kind: str, real: str) -> bytes:
         return hmac.new(self.salt, f"{kind}:{real}".encode(), hashlib.sha256).digest()
 
-    def _taken(self) -> set[str]:
-        out = set()
-        for t in self.tables.values():
-            out.update(t.keys())
-            out.update(t.values())
-        return out
-
     def _get(self, table: str, real: str, make) -> str:
         t = self.tables[table]
         if real not in t:
-            taken = self._taken()
-            n = 0
-            while True:
+            self._used.add(real)
+            for n in range(10_000):
                 fake = make(self._digest(table, f"{real}#{n}"))
-                if fake not in taken and fake != real:
+                if fake not in self._used:
                     break
-                n += 1
+            else:
+                raise RuntimeError(f"no free fake value for a {len(real)}-character {table} entry")
             t[real] = fake
+            self._used.add(fake)
         return t[real]
 
-    def number(self, table: str, real: str) -> str:
-        """A fake number with the same digit count, so that layout and parsers are unchanged."""
+    def number(self, table: str, real: str, force: bool = False) -> str:
+        """A fake number with the same digit count, so that layout and parsers are unchanged.
+
+        Numbers shorter than MIN_MAPPED_ID_LEN stay as they are, unless force is set.
+        """
         digits = len(real)
+        if digits < MIN_MAPPED_ID_LEN and not force and real not in self.tables[table]:
+            return real
 
         def make(d: bytes) -> str:
             v = int.from_bytes(d, "big")
@@ -217,10 +224,11 @@ class Anonymizer:
         self.literals: dict[str, str] = dict(identity.get("strings", {}))
         for e in identity.get("emails", []):
             self.literals[e] = self.m.email(e)
-        self.m.tables["ids"].setdefault(self.own_id, self.m.number("ids", self.own_id))
+        self.m.number("ids", self.own_id, force=True)
         self.m.tables["names"][self.own_name] = self.m.tables["names"].get(self.own_name, "PdaTester")
+        self.m._used.update((self.own_name, self.m.tables["names"][self.own_name]))
         if self.faction_id:
-            self.m.number("factions", self.faction_id)
+            self.m.number("factions", self.faction_id, force=True)
         if self.faction_name:
             self.literals[self.faction_name] = "Example Faction"
         self._compiled = None
@@ -308,20 +316,17 @@ class Anonymizer:
         lit_re = re.compile("|".join(re.escape(x) for x in ordered)) if ordered else None
 
         other = {k: v for k, v in self.m.tables["names"].items() if k != self.own_name}
-        names_re = (
-            re.compile(
-                r"(?<![A-Za-z0-9_-])("
-                + "|".join(re.escape(x) for x in sorted(other, key=len, reverse=True))
-                + r")(?=\s*\[\d|</a>|\")"
-            )
-            if other
-            else None
-        )
+        # One generic pattern and a dict lookup. An alternation of thousands of names
+        # would be tried at every position of every body.
+        names_re = re.compile(r"(?<![A-Za-z0-9_-])([A-Za-z0-9_-]{3,20})(?=\s*\[\d|</a>|\")") if other else None
         id_ctx = "|".join(f"(?:{c})" for c in ID_CONTEXTS)
         fac_ctx = "|".join(f"(?:{c})" for c in FACTION_CONTEXTS)
-        long_ids = [k for k in self.m.tables["ids"] if len(k) >= MIN_FREE_ID_LEN] + [self.own_id]
+        free = {k: v for k, v in self.m.tables["ids"].items() if len(k) >= MIN_FREE_ID_LEN}
+        free.update({k: v for k, v in self.m.tables["factions"].items() if len(k) >= MIN_FREE_ID_LEN})
+        free[self.own_id] = self.m.tables["ids"][self.own_id]
         if self.faction_id:
-            long_ids.append(self.faction_id)
+            free[self.faction_id] = self.m.tables["factions"][self.faction_id]
+        self._free = free
         self._compiled = (
             lit_re,
             lit,
@@ -329,7 +334,7 @@ class Anonymizer:
             other,
             re.compile(f"({fac_ctx})(\\d{{1,8}})(?!\\d)"),
             re.compile(f"({id_ctx})(\\d{{1,8}})(?!\\d)"),
-            re.compile(r"(?<![\dA-Za-z])(" + "|".join(sorted(set(long_ids), key=len, reverse=True)) + r")(?![\dA-Za-z])"),
+            re.compile(r"(?<![\dA-Za-z])(\d{1,8})(?![\dA-Za-z])"),
         )
 
     def rewrite(self, text: str) -> str:
@@ -340,10 +345,11 @@ class Anonymizer:
         if lit_re:
             text = lit_re.sub(lambda mo: lit[mo.group(0)], text)
         if names_re:
-            text = names_re.sub(lambda mo: other[mo.group(1)], text)
+            text = names_re.sub(lambda mo: other.get(mo.group(1), mo.group(1)), text)
         text = fac_re.sub(lambda mo: mo.group(1) + facs.get(mo.group(2), mo.group(2)), text)
         text = id_re.sub(lambda mo: mo.group(1) + ids.get(mo.group(2), mo.group(2)), text)
-        text = free_re.sub(lambda mo: ids.get(mo.group(1)) or facs.get(mo.group(1)) or mo.group(1), text)
+        free = self._free
+        text = free_re.sub(lambda mo: free.get(mo.group(1), mo.group(1)), text)
         text = IPV4_RE.sub(lambda mo: mo.group(0) if _private_ip(mo.group(0)) else self.m.ip(mo.group(0)), text)
         return text
 
