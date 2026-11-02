@@ -3,6 +3,7 @@
 #   tools/replay/run-test.sh flows/faction.yaml RECORDING.mitm [MORE.mitm ...]
 # The clock starts at the first request of the first recording.
 # Set PDA_APK to install a build before the test (it keeps the snapshot's app data).
+# The run folder gets a status file (passed or failed). tools/perf/summarize.py skips failed runs.
 # Results go to $PDA_REC_DIR/runs/<UTC time>-<flow>/.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
@@ -14,7 +15,10 @@ name=$(basename "$flow" .yaml)
 out="$PDA_REC_DIR/runs/$(date -u +%Y%m%dT%H%M%SZ)-$name"
 mkdir -p "$out"
 trap stop_proxy EXIT
-adb emu avd snapshot load "$PDA_SNAPSHOT" >/dev/null
+# run-baseline.sh boots each emulator from the snapshot, and sets PDA_SNAPSHOT_LOADED=1.
+if [ -z "${PDA_SNAPSHOT_LOADED:-}" ]; then
+  adb emu avd snapshot load "$PDA_SNAPSHOT" >/dev/null
+fi
 adb wait-for-device
 if [ -n "${PDA_APK:-}" ]; then
   adb install -r "$PDA_APK" >/dev/null
@@ -46,6 +50,7 @@ sleep "${PDA_PERF_WAIT:-12}"
 adb logcat -d >"$out/logcat.txt"
 # PDA's own lines. Chromium also logs the probe's console line ("[PDA-PERF] {"), cut short.
 grep -E "\[PDA-PERF-(DART|PROBE)\] " "$out/logcat.txt" >"$out/perf.txt" || true
+[ $status -eq 0 ] && echo passed >"$out/status" || echo failed >"$out/status"
 misses=$(grep -c '"miss"' "$out/misses.jsonl" 2>/dev/null || true)
 echo "$name: $([ $status -eq 0 ] && echo passed || echo FAILED), ${misses:-0} misses. Results in $out"
 exit $status
