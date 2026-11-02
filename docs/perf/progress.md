@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-02 (fourth session).
+Last update: 2026-11-02 (fourth session, PR #501 opened).
 
 ## State
 
@@ -319,6 +319,38 @@ The original plan:
 - Run the summary script, and save the result as the baseline for the build.
 - If the spread is too large to see a change of about 10%, add runs, or find
   the source of the noise first.
+
+## Upstream pull requests
+
+Each fix has two branches. The measurement branch starts from
+`perf/analysis` and has the `PDA_PERF` hooks. The upstream branch starts
+from `origin/develop` and has only the fix, with plain `getHtml()` in place
+of `PerfTrace.getHtml`. The user opens and writes each PR. Update this
+table when a PR is opened, changed or closed.
+
+| Fix | Measurement branch | Upstream branch | PR | Status |
+|---|---|---|---|---|
+| A1 1.1, travel check | `perf/a1-travel-check` | `travel-check-observer` | [#501](https://github.com/Manuito83/torn-pda/pull/501) | Open since 2026-11-02 |
+
+To see the state of all PRs:
+
+```sh
+gh pr list -R Manuito83/torn-pda --author xentac --state all
+```
+
+- The Analyze and Test checks also fail on `develop` (since `fe76815d`
+  or earlier). The Analyze error is `ChatEngine.recheck` in
+  `native_chat.dart`, because the public stub
+  `lib/config/chat_engine.dart.example` has no `recheck`. Do not fix this in
+  a PR.
+- Measure each new fix against `perf/analysis` without the open fixes, so
+  that each comparison shows one fix.
+- When a PR is merged, rebase `perf/analysis` on `origin/develop`. In a
+  conflict, keep the upstream code and put `PerfTrace.getHtml` back in
+  place of `getHtml()`. Then delete the measurement branch of the fix.
+- If the maintainer asks for changes, change the upstream branch first,
+  then copy the change to the measurement branch. Measure again only if
+  the change can change the numbers.
 
 ## Next steps
 
