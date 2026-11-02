@@ -260,8 +260,9 @@ The original plan:
 - Network timing: use `MITM_ARGS="--set pda_replay_latency=recorded"`, so
   that the pages load at about the speed of the real server. Every comparison
   must use the same setting.
-- Remote Config flags come live from Firebase. Run the baseline and each
-  comparison on the same day, or pin the flags.
+- Remote Config flags come live from Firebase, and the emulator drifts
+  during a session. Run the two builds of a comparison in alternation in one
+  session (`PDA_APKS`), or pin the flags.
 - Close other apps on the emulator. Use the same AVD and the same host load.
 - Write the WebView version (`adb shell dumpsys webviewupdate`) and the PDA
   commit into the baseline file.

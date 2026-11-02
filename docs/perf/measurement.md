@@ -107,6 +107,8 @@ The emulator drifts during a session. In one session, the same build got 10 % fa
 
 For each page, the comparison shows the old and the new median with p25 to p75, the change, and a p-value. The p-value comes from a rank test (Mann-Whitney) on the per-run values. A change with p < 0.05 is marked `higher` or `lower`. The script tests only the main metrics and the `--metric` names. A page has about 80 metrics, and a test at p < 0.05 marks about 4 of them on two identical builds. `--all` also lists the other metrics with p < 0.05, without a mark. Read them as leads, not as results.
 
+Runs with `PDA_APKS` install the build and start PDA again before the flow. Their start state is not the same as in runs without an install. Thus compare `PDA_APKS` runs only with `PDA_APKS` runs of the same session, not with a saved baseline.
+
 With 4 runs per build, the smallest possible p-value is 0.029. Use at least 6 runs per build. If the two summaries come from different recordings, the script stops. If other `env.json` values differ, for example the WebView version, it prints a warning.
 
 ## 3. Whole-app bench (adb)
