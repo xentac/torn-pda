@@ -24,6 +24,8 @@ class ForeignStocksWebviewHandler {
   final SettingsProvider settingsProvider;
 
   DateTime? _foreignStocksSentTime;
+  // Counts the travel checks, so that a check that ends after the next page load is ignored
+  int _travelCheck = 0;
 
   ForeignStocksWebviewHandler({
     required this.webViewController,
@@ -53,11 +55,14 @@ class ForeignStocksWebviewHandler {
   static const _abroadSelector = ".travel-home, .travel-home-header-button";
 
   Future<void> assessTravel(dom.Document document) async {
+    final check = ++_travelCheck;
     var abroad = document.querySelectorAll(_abroadSelector).isNotEmpty;
     if (!abroad) {
       // The element can appear after load, so wait for it in the page (up to 2 seconds)
       // instead of copying and parsing the whole page again in a loop
       abroad = await _waitForAbroadElement();
+      // A newer page started its own check while this one waited
+      if (check != _travelCheck) return;
       if (abroad) {
         final html = await PerfTrace.getHtml(null, webViewController);
         if (html != null) document = parse(html);
