@@ -24,13 +24,28 @@ The user prompt that started this work was cut off at "a similar app that". This
 
 Read this section before you use any number in this report.
 
-- Nobody ran the app for this report. No Android device was available. Every count comes from reading the code. Every millisecond figure is an estimate.
+- The findings come from reading the code. When the report was written, nobody ran the app. The first measurements came later and are in "First measurements" below. Every other count and millisecond figure in this report is an estimate.
 - The tools in `tools/perf/` and `lib/utils/perf/` replace the estimates with numbers. `docs/perf/measurement.md` tells you how to use them. Each finding names the metric that proves or disproves it.
 - The analysis covers upstream `origin/develop` at `fe76815d`. Line numbers are for the branch `perf/analysis` at commit `5b467276`. Later commits on the branch do not move lines in `webview_full.dart` or `travel_handler.dart`. That branch adds the measurement hooks, which move most lines in `webview_full.dart` down by about 11, and lines in `travel_handler.dart` down by 1.
 - The plugin is the Manuito83 fork of `flutter_inappwebview` at `765d75b6`, as pinned in `pubspec.yaml`. Engine statements refer to the Flutter 3.47.9 source.
 - Two adversarial reviews tested the first version of this report against the code. This version includes their corrections.
 - "Verified" means that the code path was read and found to work as described. "Suspected" means that the mechanism is clear but the size of the cost is not known.
 - The full list of page reads is in `docs/perf/page-data-inventory.md`.
+
+### First measurements
+
+The first baseline used a profile build of `perf/analysis` at `88e8b12a` with `PDA_PERF=true`, on an Android emulator. The record and replay tools (section "Regression testing") supplied the pages, with the recorded server latency. Each flow ran 8 times, and all 24 runs passed. The table gives medians. `getHtml` is the number of full-page HTML copies that Dart requested. `setState` is the number of rebuilds of the whole browser widget.
+
+| Page | Page load (ms) | `getHtml` | `setState` |
+|---|---|---|---|
+| Profile | 1163 | 16 | 80 |
+| Attack | 958 | 15 | 27 |
+| Attack log | 1332 | 12 | 66 |
+| Faction (own) | 1647 | 45 | 206 |
+| Faction (other) | 1207 | 38 | 96 |
+| Crimes (one visit) | 896 | 62 | 136 |
+
+On the profile and attack pages, the counts agree with the estimate of about 12 `getHtml` calls per plain page. The faction and crimes pages make three to five times as many copies. The counts are the same, or almost the same, in every run. Thus a change in a count is real. Page load time varies by up to 13 % between runs on the profile and faction pages. A change smaller than that needs more runs. The emulator is not a phone, so use these numbers to compare builds, not as the speed that users see. The method and the full results are in `docs/perf/progress.md`.
 
 ## The central problem: one thread does everything
 
@@ -152,7 +167,7 @@ Three injected features run on every Torn page by default:
 
 Observers with `subtree` and `characterData` run on every DOM change. Torn's DOM changes often (timers, chat, bars).
 
-Fix: one shared observer in the page data layer, with work batched per animation frame. Keep the trim check on every page, because Torn's chat cache grows while you use the app, and the trim must run before the chat reads its cache. Make the check cheaper instead: on each page, read only the chat cache keys. Do the full scan of every key (for the safety limit and the Crashlytics values) at most once every few minutes, with the time of the last scan in `sessionStorage`. Measure the scan first, because with a few MB of storage it can cost only a few milliseconds.
+Fix: one shared observer in the page data layer, with work batched per animation frame. Keep the trim check on every page. Torn's chat cache grows while you use the app, and the trim must run before the chat reads its cache. Make the check cheaper instead: on each page, read only the chat cache keys. The full scan of every key gives the safety limit and the Crashlytics values. Do it at most once every few minutes, and keep the time of the last scan in `sessionStorage`. Measure the scan first, because with a few MB of storage it can cost only a few milliseconds.
 
 Measure with: `hooks.moInjected`, `hooks.moCbMsInjected` and `hooks.ivCbMsInjected` in the probe, with the probe's hooks injected first (see "Track 0").
 
@@ -204,7 +219,7 @@ Measure with: `res.lastEnd` and `nav.load` in the probe, with chat hidden and sh
 | Section reads use retry loops. Trades make 2 to 4 copies per trigger, on every `trade.php` resource. The vault makes up to 11 copies. Jail and bounties make 1 to 3 copies, only to test that a list exists. City items poll up to 30 times. A profile by name makes up to 6 copies, and the travel agency makes 5. | These pages | The page data layer. |
 | With the cache turned off, `cacheMode` is `LOAD_NO_CACHE` and each new WebView clears the cache. | Users who turned the cache off, or the Remote Config value "off" | Ask users with slow loads to make sure that the cache is on. Look at `res.cacheRatio` in the probe. |
 | The Temporary quick items feature installs permanent global `fetch` and XHR wrappers that clone and parse every later response. | Users of that feature | Parse only the responses of the endpoint it needs. |
-| `onScrollChanged` sends a channel message for each scroll offset change. Dart only stores the position for a later restore. | All scrolls | The renderer-death restore (`onRenderProcessGone`) needs the last position after the page is gone, so Dart cannot ask for it only at restore time. Keep the last position in the plugin's native view, which receives every change already, and let Dart read it when it needs it. If that is not possible, send at most one message every 250 ms, and one at the end of a scroll. |
+| `onScrollChanged` sends a channel message for each scroll offset change. Dart only stores the position for a later restore. | All scrolls | The renderer-death restore (`onRenderProcessGone`) needs the last position after the page is gone, so Dart cannot ask for it only at restore time. The plugin's native view already receives every change. Keep the last position there, and let Dart read it when it needs it. If that is not possible, send at most one message every 250 ms, and one at the end of a scroll. |
 
 ### Tier 3: background and startup
 
@@ -235,7 +250,7 @@ This section answers a direct question: is one high-performance interface to the
 One JavaScript module, registered once per tab as a document-start script. It replaces every Dart-side read and every page-reading snippet.
 
 1. Detection. At document start, the module finds the section from `location`. After the DOM is ready, it tests the section against the DOM. It follows `hashchange`, `pushState` and `popstate` for single-page routes.
-2. Extractors. Each section has one extractor that reads only the fields that features need. The module uses observers at two levels. One shared `MutationObserver` on the document watches only `childList`, with no `characterData` and no attributes, and finds the containers that the active section needs. Each container then gets its own small observer, with `characterData` only where a value is text, such as the chain bar or a trade list. Work is batched per animation frame. If the active section has all its containers, the document observer stops until the next route change. An extractor keeps only the last value of each fact, not a copy of the DOM, and it reports a fact only after a change of that value.
+2. Extractors. Each section has one extractor that reads only the fields that features need. The module uses observers at two levels. One shared `MutationObserver` on the document watches only `childList`, with no `characterData` and no attributes, and finds the containers that the active section needs. Each container then gets its own small observer, with `characterData` only where a value is text, such as the chain bar or a trade list. Work is batched per animation frame. If the active section has all its containers, the document observer stops until the next route change. An extractor keeps only the last value of each fact, not a copy of the DOM. It reports a fact only after a change of that value.
 3. Network facts. Where Torn loads data with XHR or `fetch` (trades, vault, jail, bounties, armoury, item search), the module reads the response, not the DOM. It uses the filtered `PerformanceObserver` from 1.5 to learn which request finished, and reads the result once.
 4. Transport. The module sends typed events to Dart through one handler, `pdaPage`, for example `{type: "section", section: "trade"}` or `{type: "travel", abroad: true, country: "mex", stock: [...]}`. Dart keeps the latest facts per tab in a `PageFacts` object. Features listen to the facts that they need.
 5. Selectors in one place. All selectors are in one table in the module. Remote Config can replace the table, so a Torn class change does not need an app release.
