@@ -5,7 +5,7 @@ const String perfProbeSource = r'''
 // ==UserScript==
 // @name         PDA Perf Probe
 // @namespace    torn-pda-perf
-// @version      0.2.0
+// @version      0.3.0
 // @description  Records page-load, interaction and main-thread metrics on torn.com. Runs unchanged in Torn PDA and in Tampermonkey/Violentmonkey so the two can be compared.
 // @match        https://www.torn.com/*
 // @run-at       document-start
@@ -33,7 +33,10 @@ const String perfProbeSource = r'''
 //   any delay before the request starts, for example a native app that holds the navigation.
 // - bridge: calls to window.flutter_inappwebview.callHandler, by handler name, with
 //   round-trip times and the time of the first call (PDA only). The plugin's own
-//   onLoadResource messages show up here as byName.onLoadResource.
+//   onLoadResource messages show up here as byName.onLoadResource. byName.X.firstAt is the
+//   time of the first call of handler X.
+// - us: what the replay's test userscripts (tools/replay/userscripts/) wrote into
+//   window.__pdaPerfUs, for example when their first PDA_httpGet answer came.
 // - segments: for each hash or history route change, long tasks, bridge calls and frame gaps
 //   in the 3 s after the change (single-page parts of Torn).
 // - hooks: MutationObservers, setInterval timers and their callback time, split into
@@ -146,7 +149,7 @@ const String perfProbeSource = r'''
       rec.bridge.calls++;
       if (rec.bridge.firstAt === null) rec.bridge.firstAt = Math.round(performance.now());
       if (seg) seg.bridge++;
-      const e = (rec.bridge.byName[name] = rec.bridge.byName[name] || { n: 0, totalMs: 0, maxMs: 0 });
+      const e = (rec.bridge.byName[name] = rec.bridge.byName[name] || { n: 0, totalMs: 0, maxMs: 0, firstAt: Math.round(performance.now()) });
       e.n++;
       const s = performance.now();
       rec.bridge.pendingAtReport++;
@@ -303,6 +306,7 @@ const String perfProbeSource = r'''
     Object.values(rec.bridge.byName).forEach(round);
     rec.segments.forEach((x) => (x.ltMs = Math.round(x.ltMs)));
     rec.env = rec.env || (isPDA() ? "pda" : typeof GM_info !== "undefined" ? "tm" : "browser");
+    if (window.__pdaPerfUs) rec.us = window.__pdaPerfUs;
     rec.domNodes = document.getElementsByTagName("*").length;
     rec.styleTags = document.querySelectorAll("style").length;
     rec.inlineScripts = document.querySelectorAll("script:not([src])").length;

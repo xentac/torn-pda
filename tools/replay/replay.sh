@@ -12,4 +12,5 @@ exec mitmdump --listen-port "$PDA_PROXY_PORT" \
   --set connection_strategy=lazy --set upstream_cert=false \
   --ignore-hosts "$PDA_PASSTHROUGH" \
   -s "$here/pda_replay.py" --set pda_replay="$recs" --set pda_replay_misses="$misses" \
+  --set pda_replay_static="$PDA_STATIC" \
   ${MITM_ARGS:-}

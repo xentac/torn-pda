@@ -6,6 +6,8 @@ Live connections to hosts that match `pda_replay_guard` (torn.com by default)
 are refused, so that a mistake in the configuration cannot reach Torn.
 The host in BLANK_URL gets a fixed empty page. make-snapshot.sh leaves the
 browser on it, so that no Torn page runs when a test starts.
+`pda_replay_static` names JSON files that map URLs to local files, for example
+userscripts that PDA downloads. Those URLs get the file, not a recording.
 
 Matching: method, host, path, the query without the ignored parameters, and the
 body. Form bodies (URL-encoded and multipart) are compared field by field without
@@ -34,6 +36,8 @@ import datetime
 import hashlib
 import json
 import logging
+import mimetypes
+import os
 import re
 import time
 import urllib.parse
@@ -70,6 +74,8 @@ class PdaReplay:
         self.first_ts: float | None = None
         # Cookies that the recorded browser sent, per site, such as "torn.com".
         self.cookies: dict[str, dict[str, str]] = {}
+        # Unquoted URL -> (content, content type), from pda_replay_static.
+        self.static: dict[str, tuple[bytes, str]] = {}
         self.stats = {"hit": 0, "hold": 0, "loose": 0, "state": 0, "miss": 0, "blocked": 0}
 
     def load(self, loader):
@@ -89,6 +95,9 @@ class PdaReplay:
             "pda_replay_log_hits", bool, False, "Also log exact matches in the miss log, to see what a flow did."
         )
         loader.add_option(
+            "pda_replay_static", str, "", "Comma-separated JSON files that map URLs to files (paths relative to the JSON file)."
+        )
+        loader.add_option(
             "pda_replay_cert_days", int, 400, "Days before now that generated certificates become valid."
         )
 
@@ -101,6 +110,8 @@ class PdaReplay:
         self.guard = re.compile(g) if g else None
         if "pda_replay" in updated or "pda_replay_ignore" in updated:
             self._load(ctx.options.pda_replay)
+        if "pda_replay_static" in updated:
+            self._load_static(ctx.options.pda_replay_static)
 
     def running(self):
         # A live connection opened before the request (to copy the server's
@@ -166,6 +177,20 @@ class PdaReplay:
                     n += 1
         if paths:
             logging.info("pda-replay: loaded %d answers for %d URLs", n, len(self.urls))
+
+    def _load_static(self, paths: str):
+        self.static.clear()
+        for path in [p.strip() for p in paths.split(",") if p.strip()]:
+            with open(path) as f:
+                files = json.load(f)
+            base = os.path.dirname(path)
+            for url, name in files.items():
+                with open(os.path.join(base, name), "rb") as f:
+                    content = f.read()
+                ctype = "text/javascript" if name.endswith(".js") else mimetypes.guess_type(name)[0] or "text/plain"
+                self.static[urllib.parse.unquote(url)] = (content, ctype)
+        if self.static:
+            logging.info("pda-replay: %d static files", len(self.static))
 
     def _next(self, cursor_key, lst) -> http.HTTPFlow | None:
         if not lst:
@@ -233,6 +258,12 @@ class PdaReplay:
             return
         if r.pretty_url == BLANK_URL:
             flow.response = http.Response.make(200, BLANK_PAGE, {"content-type": "text/html", HEADER: "blank"})
+            return
+        static = self.static.get(urllib.parse.unquote(r.pretty_url))
+        if static:
+            if ctx.options.pda_replay_log_hits:
+                self._log(flow, "static")
+            flow.response = http.Response.make(200, static[0], {"content-type": static[1], HEADER: "static"})
             return
         kind, rec = self.find(r)
         if rec is None:
