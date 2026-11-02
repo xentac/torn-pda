@@ -40,8 +40,12 @@ Last update: 2026-11-02 (sixth session).
   the old behavior.
 - APKs in `~/pda-recordings/apks/`: `50a4a3d9` (old base, before
   `610af44f`), `d4a7dbad` (`develop` at `610af44f` with the hooks, without
-  #501). The current `perf/analysis` (`develop` at `34594b4c`) has no APK
-  yet.
+  #501), `8f24d8e4` (`d4a7dbad` with the `TickerMode` change, only for
+  the frame measurement). The current `perf/analysis` (`develop` at
+  `34594b4c`) has no APK yet.
+- Since the sixth session, `perf/analysis` has three commits that are
+  not on the fork (the frame notes and the `dismiss-tips.yaml` change).
+  Ask before you push.
 - The report is published as a shared artifact:
   https://claude.ai/artifact/GCojySixXsQJxfYYTqNxfK (version 13). The source is
   `report.md`.
@@ -383,7 +387,44 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    changelog dialog (see "The 60 frames each second").
    `dismiss-tips.yaml` now closes the changelog. The maintainer makes
    the `TickerMode` change upstream, so there is no PR from us. The local
-   branch `perf/drawer-tickermode` was only for the measurement.
+   branch `perf/drawer-tickermode` was only for the measurement. Delete
+   it after the clean A1 run.
+
+   Next task (the user chose it): the clean A1 run. The A1 numbers in
+   "A1 after the maintainer's commit 610af44f" come from runs with the
+   changelog open under the browser, so their frame and lag numbers are
+   wrong. Do this:
+
+   - Build a profile APK of `perf/analysis` with the usual flags (see
+     item 1). The doc commits do not change `lib/`, so name the APK
+     after the last commit that changed `lib/`
+     (`git log -1 --format=%h -- lib`), and write the name down here.
+     Copy it out of `build/` at once.
+   - Before the session, make sure that no emulator, `mitmdump` or
+     `run-test.sh` is left (`adb get-state`, `pgrep -af mitmdump`).
+     The user can change the sway window rules for the emulator first.
+     If the emulator window becomes hidden (another workspace or the
+     scratchpad), all runs of the session must have the same setting.
+   - Run 8 attack runs of `50a4a3d9` and the new APK, alternated, with
+     the command in item 1. It takes about 25 minutes. Run it in the
+     background.
+   - Make sure that the changelog closed in the new build's runs: the
+     Maestro log has "Tap on \"Great!.*\"... COMPLETED", and
+     `dart.frames.n` is under 150 per page.
+   - Compare with `summarize.py --compare` and these metrics:
+     `dart.frames.n`, `dart.lag.totalMs`, `dart.frames.rasterOver16`,
+     `dart.cb.onLoadStop.wallMs`. In zsh, give the `--metric` flags and
+     the run folders as arrays, not as one variable.
+   - Replace the table and the frame text in "A1 after the maintainer's
+     commit 610af44f" with the new numbers. One open question to check:
+     `onLoadStop` on the attack page rose from 26 to 49 ms in the
+     sixth session, also with the `TickerMode` build.
+   - Then do the two items below ("Still to do from this list"), and tell
+     the user the numbers before anything goes to the maintainer.
+   - Later: the new `develop` makes requests that the recordings do not
+     have (`tchat/settings`, `tchat/rooms/tokens`,
+     `user/organizedcrime`). A new capture needs the user's login
+     (`live-ready`), so ask the user first.
 
 1. The A1 and B1 quick fixes from the report, one branch each. For each fix,
    build the APK before and after the fix, and run both in one session with
@@ -447,7 +488,7 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 
    Done in the fifth session: the rebase on `develop`, the comparison of
    the new `develop` with `50a4a3d9.apk`, and the deletion of the old fix
-   branches. Still to do from this list, after the frame investigation
+   branches. Still to do from this list, after the clean A1 run
    (item 0):
 
    - Mark the A1 items that upstream did in `report.md`, and republish the
