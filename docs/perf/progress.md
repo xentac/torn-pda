@@ -16,8 +16,9 @@ Last update: 2026-11-02 (second session).
 - Track T (record and replay) works from start to finish on the emulator:
   capture, anonymize, snapshot, automated test run. Three flows pass:
   `attack.yaml`, `faction.yaml` and `crimes.yaml`. Track 0 (baseline timing)
-  started: steps 1 to 5 of "Next steps: the baseline" below are done. Step 6
-  (the baseline runs) is in progress.
+  done: all six steps of "Next steps: the baseline" below. The first
+  baseline is in `~/pda-recordings/baselines/f4aeebdb-profile/` (one file
+  per flow, 8 runs each, not in git).
 - The user approved the report on 2026-11-02, with the comments answered.
   Follow the plan until the upstream developer gives feedback.
 - The report also has the URL
@@ -261,11 +262,46 @@ The original plan:
 - Write the WebView version (`adb shell dumpsys webviewupdate`) and the PDA
   commit into the baseline file.
 
-### 6. Run the baseline (in progress)
+### 6. Run the baseline (done)
 
 Use `tools/replay/run-baseline.sh FLOW 8 RECORDINGS...` (see the replay
-README). It boots a new emulator from the snapshot for each run. Started on
-2026-11-02 with 8 runs per flow.
+README). It boots a new emulator from the snapshot for each run. On
+2026-11-02, 8 runs of each flow passed (24 of 24), on the profile build of
+commit `f4aeebdb`, WebView 133.0.6943.137, recorded latency. The files are
+in `~/pda-recordings/baselines/f4aeebdb-profile/`.
+
+Medians:
+
+| Page | `nav.load` ms | `probeStart` ms | `getHtml` | `setState` |
+|---|---|---|---|---|
+| `profiles.php?XID=N` | 1163 | 317 | 16 | 80 |
+| `page.php?sid=attack` | 958 | 296 | 15 | 27 |
+| `page.php?sid=attackLog` | 1332 | 748 | 12 | 66 |
+| `factions.php?step=your` | 1647 | 322 | 45 | 206 |
+| `factions.php?step=your&type=N` | 1207 | 300 | 38 | 96 |
+| `page.php?sid=crimes` (whole visit) | 896 | 267 | 62 | 136 |
+
+How much the numbers vary (p25 to p75, as a share of the median):
+
+- Counts (`getHtml`, `setState`) are the same or almost the same in each
+  run. Any change shows.
+- `nav.ttfb`, `probeStart` and `bridge.firstAt`: 8 % or less. A change of 10 %
+  shows.
+- `nav.dcl` and `nav.load`: 2 % (crimes) to 13 % (profile). On the profile
+  and faction pages, a change of 10 % does not show clearly. Use 16 runs
+  for these pages, or compare the whole distributions.
+- `cb.onLoadStop.wallMs` (16 to 65 %) and the `lag` counts (small numbers)
+  are too noisy for a comparison alone.
+
+Two notes for reading the numbers:
+
+- The profile page is left before its 10 s report, so its probe record is
+  the `pagehide` one (`final: 1`). It covers a shorter time than the others.
+- `bridge.firstAt` comes 20 to 60 ms after `probeStart`, but this is PDA's
+  own first handler call. No userscript is installed in the snapshot, so
+  finding 1.8 (userscript calls wait for `load`) is not measured yet. For
+  that, install a test userscript that calls `PDA_httpGet` at document
+  start.
 
 The original plan:
 
