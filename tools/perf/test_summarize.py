@@ -106,3 +106,20 @@ def test_permutation_p():
     # Above 20000 splits, the result comes from a fixed sample.
     a, b = list(range(12)), list(range(5, 17))
     assert summarize.permutation_p(a, b) == summarize.permutation_p(a, b)
+
+
+def test_userscript_times_get_derived_metrics(tmp_path):
+    run = tmp_path / "20261101T000000Z-us"
+    run.mkdir()
+    us = {
+        "start": {"callAt": 300, "readyAt": 1000, "answerAt": 1100},
+        "endAll": {"start": 1060},
+        "endProfile": {"start": 1100},
+    }
+    probe = json.dumps({"url": URL, "nav": {"load": 980, "ttfb": 100}, "probeStart": 130, "us": us})
+    (run / "perf.txt").write_text(f"I chromium: [PDA-PERF-PROBE] 1 1/1 {probe}\n")
+    page = summarize.run_metrics(run)["/profiles.php?XID=N"]
+    assert page["probe.us.start.waitMs"] == 700
+    assert page["probe.us.start.rttMs"] == 800
+    assert page["probe.us.endAll.afterLoad"] == 80
+    assert page["probe.us.endGapMs"] == 40

@@ -448,9 +448,10 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    Step 1, the measurement setup, is done (eighth session). See "The B1
    baseline". The next task is fix 1.8 against the B1 baseline: a
    measurement branch from `perf/analysis` and an upstream branch from
-   `origin/develop`. Its success metric is
-   `probe.us.start.answerAt` minus `probe.us.start.callAt`, and
-   `probe.us.start.readyAt`. Write the iOS and beta-tester test plan into
+   `origin/develop`. Its success metrics are `probe.us.start.waitMs` and
+   `probe.us.start.rttMs` (give them to `summarize.py --metric`). For
+   fix 1.7, part 1, use `probe.us.endAll.afterLoad` and
+   `probe.us.endGapMs`. Write the iOS and beta-tester test plan into
    the PR text.
 
    Then one branch for each fix, as in item 1. The user writes and posts
@@ -565,6 +566,11 @@ What changed in the tools:
   `window.__pdaPerfUs`. The probe (version 0.3.0) adds this object to its
   record, so `summarize.py` shows the fields as `probe.us.<script>.<field>`.
   The probe also writes `bridge.byName.<handler>.firstAt`.
+- `summarize.py` derives four metrics per run from these fields:
+  `us.start.waitMs` (`readyAt` minus `callAt`), `us.start.rttMs`
+  (`answerAt` minus `callAt`), `us.endAll.afterLoad` (`endAll.start`
+  minus `nav.load`) and `us.endGapMs` (the second document-end script's
+  `start` minus `endAll.start`).
 - `make-snapshot.sh` adds the test scripts through PDA's remote load
   dialog (`flows/add-userscripts.yaml`). The success message is a toast,
   which Maestro cannot see, so the flow waits for the script name.
@@ -573,8 +579,9 @@ What changed in the tools:
   waits for a hash change, so it is cheap.
 - An open question: the old `replay-ready` snapshot already listed the
   five example scripts, although the proxy answered their downloads with
-  a 502. Where the scripts came from is not known. Thus the A1 runs
-  probably had them too.
+  a 502. Where the list came from is not known. But the old split runs
+  (`b585eab7`) have no `ols.endScript` records, so no document-end script
+  ran. Thus the A1 runs did not run the example scripts.
 
 The run: 8 runs of `53fad5c1.apk` on the attack flow, from
 `replay-ready-b1`, with `PDA_APKS` (each run installs the APK again and
@@ -591,18 +598,26 @@ Medians in ms from the navigation start:
 | `page.php?sid=attack` | 911 | 291 | 932 | 969 | 971 | 1000 | 136 |
 | `page.php?sid=attackLog` | 1220 | 750 | 1267 | 1370 | 1416 | 1468 | 258 |
 
+Per-run medians (p25 to p75) of the derived metrics, in ms:
+
+| Page | `us.start.waitMs` | `us.start.rttMs` | `us.endAll.afterLoad` | `us.endGapMs` |
+|---|---|---|---|---|
+| `profiles.php?XID=N` | 830 (748 to 880) | 1015 (899 to 1064) | 557 (501 to 595) | 112 (63 to 160) |
+| `page.php?sid=attack` | 643 (638 to 650) | 681 (676 to 697) | 68 (61 to 81) | 27 (12 to 37) |
+| `page.php?sid=attackLog` | 513 (474 to 547) | 620 (590 to 628) | 202 (183 to 221) | 32 (26 to 58) |
+
 What the numbers show:
 
 - Finding 1.8 is real. A `PDA_httpGet` call at document start waits
-  for the platform-ready event. That event comes 21 to 99 ms after the
-  page `load`. Thus the call waits 517 to 826 ms
-  (`readyAt` minus `callAt`), and the answer comes 1006 ms (profile), 678
-  ms (attack) and 620 ms (attack log) after the call. In Tampermonkey,
-  the same request would start at once.
-- Finding 1.7: the first document-end script starts 60 ms (attack),
-  196 ms (attack log) and 540 ms (profile) after `load`. The second
-  matching script starts 29 to 135 ms after the first one, because
-  `onLoadStop` runs them one at a time.
+  for the platform-ready event, which comes 21 to 99 ms after the page
+  `load` (medians). The call waits 513 to 830 ms, and its answer comes
+  620 to 1015 ms after the call. In Tampermonkey, the same request would
+  start at once. `waitMs` has a small spread on the attack pages, so a
+  change of 10 % shows.
+- Finding 1.7: the first document-end script starts 68 to 557 ms after
+  `load`. The second matching script starts 27 to 112 ms after the
+  first one, because `onLoadStop` runs them one at a time. The spread of
+  `us.endGapMs` is large, so it needs 16 runs or a large change.
 - `dart.cb.onLoadStop.wallMs` is much larger with scripts: 732, 136 and
   258 ms. In the clean A1 run (no test scripts, other snapshot), it was
   187, 42 and 98 ms. Do not compare these runs directly, because the
