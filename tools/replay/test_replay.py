@@ -246,7 +246,7 @@ def test_anonymize_refuses_bodies_it_cannot_read(files):
 @pytest.fixture
 def replay(tmp_path):
     flows = [
-        flow("GET", "https://www.torn.com/page.php?sid=a&rfcv=111", body=b"first"),
+        flow("GET", "https://www.torn.com/page.php?sid=a&rfcv=111", req_headers={"Cookie": "uid=3246819; rfc_v=abc"}, body=b"first"),
         flow("GET", "https://www.torn.com/page.php?sid=a&rfcv=222", body=b"second", ts=1_760_000_005.0),
         flow(
             "POST",
@@ -313,6 +313,14 @@ async def test_replay_skips_not_modified_answers(replay):
     addon, _, _ = replay
     r = await ask(addon, "GET", "https://www.torn.com/css/main.css")
     assert r.status_code == 502
+
+
+async def test_replay_gives_the_client_the_recorded_cookies(replay):
+    addon, _, _ = replay
+    r = await ask(addon, "GET", "https://www.torn.com/page.php?sid=a", headers={"Cookie": "rfc_v=abc"})
+    assert r.headers.get_all("set-cookie") == ["uid=3246819; Domain=.torn.com; Path=/; Secure"]
+    r = await ask(addon, "GET", "https://www.torn.com/page.php?sid=a", headers={"Cookie": "uid=3246819; rfc_v=abc"})
+    assert r.headers.get_all("set-cookie") == []
 
 
 async def test_replay_misses_never_forward(replay):

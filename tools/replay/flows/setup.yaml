@@ -1,0 +1,25 @@
+# Builds the app state for replay tests: run it through make-snapshot.sh.
+# Needs the replay proxy with the onboarding recording and one page recording,
+# and the fake API key in PDA_FAKE_KEY.
+appId: com.manuito.tornpda
+---
+- launchApp:
+    permissions:
+      notifications: allow
+- extendedWaitUntil:
+    visible: "Great!"
+    timeout: 30000
+- runFlow: dismiss-tips.yaml
+- tapOn: "Please insert your Torn API Key"
+- inputText: ${PDA_FAKE_KEY}
+- tapOn: "Load"
+- extendedWaitUntil:
+    visible: ".*TORN API USER LOADED.*"
+    timeout: 30000
+# Open a page once, so that the browser tips and Torn's own tips appear now and not in a test.
+- openLink: "https://www.torn.com/factions.php?step=your"
+- extendedWaitUntil:
+    visible: "Faction"
+    timeout: 60000
+# make-snapshot.sh closes PDA's browser tips next (Maestro cannot see them), then
+# runs dismiss-tips.yaml for Torn's own tip.
