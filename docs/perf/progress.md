@@ -45,9 +45,10 @@ Last update: 2026-11-02 (seventh session).
     the frame measurement.
   - `5dad324a`: `perf/analysis` on `develop` at `34594b4c`. It was built
     in the seventh session.
-- Since the sixth session, `perf/analysis` has five commits that are
-  not on the fork (the frame notes, the `dismiss-tips.yaml` change and
-  the clean A1 run). Ask before you push.
+  - `b64a3b8c` and `b585eab7`: the old base and `5dad324a` with a timer
+    on each await in `onLoadStop`. They are only for that measurement.
+- `perf/analysis` has one commit that is not on the fork: the
+  `onLoadStop` notes of the seventh session. Ask before you push.
 - The report is published as a shared artifact:
   https://claude.ai/artifact/GCojySixXsQJxfYYTqNxfK (version 13). The source is
   `report.md`.
@@ -406,8 +407,19 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 
    Next tasks:
 
-   - Find the cause of the longer `onLoadStop` in the new build. It is
-     34 to 48 ms longer on the profile page and the attack log.
+   - Done in the seventh session: the longer `onLoadStop` is not a
+     regression (see "The longer onLoadStop"). Nothing to tell the
+     maintainer about it.
+   - Then B1 (the user chose it). `610af44f` already did three B1 items.
+     It removes only the registered script groups
+     (`_registeredScriptGroups`). It caches the compiled `@match`
+     patterns (`_compiledFor`). A second request for the same URL within
+     2 s gets the first answer (`sendOrShare` in `remote_snippets.dart`).
+     Still open: the 1.8 gate
+     on `__PDA_platformReadyPromise`, the end scripts in one
+     `evaluateJavascript`, and the lazy list from `getCondSources`. First
+     build the snapshot with test userscripts (item 3), because the
+     replay has no userscripts now.
    - Then do the two items below ("Still to do from this list"). Tell
      the user the numbers before anything goes to the maintainer.
    - Later: the new `develop` makes requests that the recordings do not
@@ -524,14 +536,9 @@ The attack page now draws about 10 frames more than the old build, and
 the attack log about 5 more. Each frame is cheap: the total Dart lag is
 14 % lower on the attack page and 27 % lower on the profile page.
 
-One open lead: `onLoadStop` takes longer in the new build. It rose by
-48 ms on the profile page and by 34 ms on the attack log, both with
-p < 0.05. On the attack page, the rise (35 to 42 ms) is not significant
-in this run. In the sixth session, it was 26 to 49 ms with p 0.005, so
-the attack page result is not stable. The new build makes requests that
-the recordings do not have (see "State"). A part of the `onLoadStop`
-time can come from them. Find the cause before the numbers go to the
-maintainer.
+In this run, `onLoadStop` rose by 48 ms on the profile page and by
+34 ms on the attack log, both with p < 0.05. A second run did not show
+the rise, so it is not a regression (see "The longer onLoadStop").
 
 In this run, both builds write the same records for the profile page:
 the probe record is final, and the Dart record ends at the next page
@@ -541,6 +548,44 @@ A1 run, they were not.
 The first A1 run, with `d4a7dbad.apk`, had the changelog open under the
 browser. Its frame and lag numbers are wrong. Its files are in
 `~/pda-recordings/comparisons/a1-develop-d4a7dbad-vs-50a4a3d9/`.
+
+### The longer onLoadStop
+
+Checked on 2026-11-02 (seventh session). `onLoadStop` uses only 0.1 to
+0.25 ms of Dart CPU time (`dart.cb.onLoadStop.syncMs`) in both builds.
+The rest of its wall time is waiting on awaits, so it does not block the
+UI thread. The awaited helpers are the same in both builds, except for
+the script removal, which `610af44f` changed.
+
+To find the slow await, two local builds time each await in
+`onLoadStop` with `PerfTrace.cb` (names `ols.*`). `b64a3b8c` is the old
+base (branch `perf/onloadstop-split-old`), and `b585eab7` is
+`perf/analysis` (branch `perf/onloadstop-split`). Both branches are
+local only. 8 runs of each, alternated, all 16 passed. The files are in
+`~/pda-recordings/comparisons/onloadstop-split-b585eab7-vs-b64a3b8c/`.
+
+| Page | `onLoadStop` ms, old to new | `ols.getHtml` ms, old to new |
+|---|---|---|
+| `profiles.php?XID=N` | 133 to 131 (p 0.80) | 124 to 126 (p 0.80) |
+| `page.php?sid=attack` | 44 to 40 (p 0.80) | 36 to 33 (p 0.67) |
+| `page.php?sid=attackLog` | 73 to 93 (p 0.083) | 64 to 73 (p 0.23) |
+
+The other awaits take under 0.5 ms each. The replay has no userscripts,
+so `ols.endScript` has no records and the removal is near 0 ms. Thus the
+wall time of `onLoadStop` is the `getHtml` copy of the page. Its time
+depends on the WebView, not on Dart. In this run, no page has a
+significant change. The spread is large (the profile page has p25 to
+p75 of 105 to 213 ms in the old build). So the rise in the clean A1 run
+was noise. `getHtml` in `onLoadStop` is the page title read, one of the
+reads that the page data layer (track P) removes.
+
+The old base does not build with the current ignored stubs in
+`lib/torn-pda-native/`. The old code imports from there, and the new
+code from `lib/config/`. For the old build, put
+`lib/config/stats_controller.dart.example` of the old branch in
+`lib/torn-pda-native/stats/stats_controller.dart`. Keep the current
+`chat_engine.dart`, because the old stub has no `recheck`. Restore the
+current file after the build.
 
 ### The 60 frames each second
 
