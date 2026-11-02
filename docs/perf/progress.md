@@ -381,8 +381,9 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 
 0. Done in the sixth session: the 60 frames each second come from the
    changelog dialog (see "The 60 frames each second").
-   `dismiss-tips.yaml` now closes the changelog. The user wants the
-   `TickerMode` change as an upstream PR.
+   `dismiss-tips.yaml` now closes the changelog. The maintainer makes
+   the `TickerMode` change upstream, so there is no PR from us. The local
+   branch `perf/drawer-tickermode` was only for the measurement.
 
 1. The A1 and B1 quick fixes from the report, one branch each. For each fix,
    build the APK before and after the fix, and run both in one session with
