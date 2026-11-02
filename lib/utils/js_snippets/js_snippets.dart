@@ -37,6 +37,32 @@ String easyCrimesJS({required String nerve, required String? crime, required Str
   ''';
 }
 
+/// Function body for callAsyncJavaScript. Resolves true as soon as an element that matches [selector]
+/// is in the page, or false after [timeoutMs]. Replaces repeated getHtml() calls to wait for an element
+String waitForSelectorJS({required String selector, required int timeoutMs}) {
+  return '''
+    return new Promise((resolve) => {
+      if (document.querySelector('$selector')) {
+        resolve(true);
+        return;
+      }
+      let timer = null;
+      const observer = new MutationObserver(() => {
+        if (document.querySelector('$selector')) {
+          observer.disconnect();
+          clearTimeout(timer);
+          resolve(true);
+        }
+      });
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+      timer = setTimeout(() => {
+        observer.disconnect();
+        resolve(false);
+      }, $timeoutMs);
+    });
+  ''';
+}
+
 String hideItemInfoJS() {
   return '''
     var style = document.createElement('style');

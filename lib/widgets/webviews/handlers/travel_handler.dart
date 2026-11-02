@@ -50,28 +50,38 @@ class ForeignStocksWebviewHandler {
     return (value * multiplier).toInt();
   }
 
+  static const _abroadSelector = ".travel-home, .travel-home-header-button";
+
   Future<void> assessTravel(dom.Document document) async {
-    var abroad = document.querySelectorAll(".travel-home, .travel-home-header-button");
-    if (abroad.isEmpty) {
-      int attempts = 0;
-      while (attempts < 10) {
-        await Future.delayed(const Duration(milliseconds: 200));
+    var abroad = document.querySelectorAll(_abroadSelector).isNotEmpty;
+    if (!abroad) {
+      // The element can appear after load, so wait for it in the page (up to 2 seconds)
+      // instead of copying and parsing the whole page again in a loop
+      abroad = await _waitForAbroadElement();
+      if (abroad) {
         final html = await PerfTrace.getHtml(null, webViewController);
-        if (html != null) {
-          document = parse(html);
-          abroad = document.querySelectorAll(".travel-home, .travel-home-header-button");
-          if (abroad.isNotEmpty) break;
-        }
-        attempts++;
+        if (html != null) document = parse(html);
       }
     }
 
-    if (abroad.isNotEmpty) {
+    if (abroad) {
       _handleTravelUI();
       _sendStockInformation(document);
       onTravelStatusChanged(true);
     } else {
       onTravelStatusChanged(false);
+    }
+  }
+
+  Future<bool> _waitForAbroadElement() async {
+    try {
+      final result = await webViewController
+          ?.callAsyncJavaScript(functionBody: waitForSelectorJS(selector: _abroadSelector, timeoutMs: 2000))
+          .timeout(const Duration(seconds: 3));
+      return result?.value == true;
+    } catch (e) {
+      // The page was left or the call failed: same as not abroad
+      return false;
     }
   }
 
