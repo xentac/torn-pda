@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-01.
+Last update: 2026-11-02.
 
 ## State
 
@@ -14,8 +14,9 @@ Last update: 2026-11-01.
   https://claude.ai/artifact/GCojySixXsQJxfYYTqNxfK (version 4). The source is
   `report.md`.
 - Track T (record and replay) works from start to finish on the emulator:
-  capture, anonymize, snapshot, automated test run. Track 0 (baseline timing)
-  is not started.
+  capture, anonymize, snapshot, automated test run. Three flows pass:
+  `attack.yaml`, `faction.yaml` and `crimes.yaml`. Track 0 (baseline timing)
+  is not started. The plan is in "Next steps: the baseline" below.
 
 ## Environment
 
@@ -125,13 +126,99 @@ tools/replay/run-test.sh tools/replay/flows/faction.yaml ~/pda-recordings/anon/f
   words in Torn's scripts. The faction tag and the lowercase faction name are
   replaced too.
 
-## Next steps
+## Next steps: the baseline
 
-1. Optional: make the faction flow open the 9mm Uzi's 3D view.
-2. Report to the maintainer: PDA's tips block all taps on the page until the
-   user taps their target.
-3. Build the APK with `PDA_PERF=true` and `PDA_PROXY`, install it, build
-   `replay-ready` again, and run each test several times for a baseline.
-4. Track 0 from the report: probe hooks in `PDA_PERF` builds, the control app,
-   and the comparison with Firefox and Tampermonkey (on a real phone against
-   the replay proxy).
+The goal is a baseline file for each test flow (attack, faction, crimes) on the
+emulator. Later PDA builds are compared with it. Do the steps in this order.
+Each step lists how to know that it is done.
+
+### 1. Start the tests from an empty browser
+
+`make-snapshot.sh` leaves the profile page from `flows/open-profile.yaml`
+open. Every test then restores that tab first. It loads a page in the
+background, and its `getProfileData` request is a miss in every run.
+
+- Change `make-snapshot.sh` so that the snapshot has no open browser tab.
+  For example, close the tab after the profile tip is closed, and make sure
+  that PDA shows its home screen.
+- Done when a test run has no `profiles.php?step=getProfileData&XID=8810916`
+  miss.
+
+### 2. Build the measurement app
+
+- Build in profile mode, not debug mode. Debug timings are not useful.
+
+  ```sh
+  flutter build apk --profile --dart-define=PDA_PERF=true --dart-define=PDA_PROXY=10.0.2.2:8080
+  ```
+
+- Profile builds trust user certificates through
+  `android/app/src/profile/res/xml/network_security_config.xml`. Make sure
+  that this is still true on the current `develop`.
+- Install it, and build `replay-ready` again from this install with
+  `make-snapshot.sh` (it needs the onboarding, faction and attack
+  recordings).
+- Done when all three tests pass on the profile build, and `perf.txt` in each
+  run folder has `[PDA-PERF-DART]` lines.
+
+### 3. Get the probe into PDA_PERF builds
+
+Most targets in the report come from the page probe
+(`tools/perf/pda-perf-probe.user.js`), for example `probeStart`,
+`tap.tapToNavStart`, `bridge.firstAt` and `hooks.*Injected`. Track 0 in the
+report says how to inject it: first, before PDA's own document-start scripts,
+and only in `PDA_PERF` builds. See also `docs/perf/measurement.md`, section
+1.
+
+- Read the report's Track 0 row and the "Measure with" lines before you write
+  code.
+- The probe prints each record to the console with the prefix `[PDA-PERF]`.
+  PDA's `onConsoleMessage` handler (`lib/widgets/webviews/webview_full.dart`,
+  near line 2218) passes console messages to `log()`. Make sure that these
+  lines reach logcat in a profile build. If they do not, print them from
+  the `PDA_PERF` path. `run-test.sh` collects every logcat line with
+  `PDA-PERF`.
+- Done when a test run's `perf.txt` has one probe record for each page load
+  in the flow.
+
+### 4. Write a summary script
+
+Each run leaves raw lines in `perf.txt`. Write a script (for example
+`tools/perf/summarize.py`) that:
+
+- reads the run folders of one flow,
+- groups the Dart and probe records by page (URL without IDs),
+- gives the median and the spread (for example p25 and p75) of each metric
+  over the runs,
+- writes one file that is the baseline for that flow and build.
+
+The flow durations are not a useful metric, because Maestro's waits change
+from run to run. Use the per-page records.
+
+### 5. Choose the run settings and keep them
+
+- Network timing: use `MITM_ARGS="--set pda_replay_latency=recorded"`, so
+  that the pages load at about the speed of the real server. Every comparison
+  must use the same setting.
+- Remote Config flags come live from Firebase. Run the baseline and each
+  comparison on the same day, or pin the flags.
+- Close other apps on the emulator. Use the same AVD and the same host load.
+- Write the WebView version (`adb shell dumpsys webviewupdate`) and the PDA
+  commit into the baseline file.
+
+### 6. Run the baseline
+
+- Run each flow 5 to 10 times with `run-test.sh` and the profile APK.
+- Run the summary script, and save the result as the baseline for the build.
+- If the spread is too large to see a change of about 10%, add runs, or find
+  the source of the noise first.
+
+### Later
+
+- The comparison with Firefox and Tampermonkey needs a real phone, as the
+  report says. The phone can use the replay proxy on the computer.
+- The control app from Track 0 (a minimal `flutter_inappwebview` app) is
+  still to do.
+- Optional: make the faction flow open the 9mm Uzi's 3D view.
+- Report to the maintainer: PDA's tips block all taps on the page until the
+  user taps their target.
