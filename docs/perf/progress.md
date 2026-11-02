@@ -380,9 +380,9 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 ## Next steps
 
 0. Done in the sixth session: the 60 frames each second come from the
-   changelog dialog (see "The 60 frames each second"). Still to do: the
-   user decides on an upstream PR or a short report, and the flow fix
-   for the changelog in `dismiss-tips.yaml`.
+   changelog dialog (see "The 60 frames each second").
+   `dismiss-tips.yaml` now closes the changelog. The user wants the
+   `TickerMode` change as an upstream PR.
 
 1. The A1 and B1 quick fixes from the report, one branch each. For each fix,
    build the APK before and after the fix, and run both in one session with
@@ -610,6 +610,9 @@ a `div.travel-home` element.
   changelog after the install, and `replay-ready` does not have it
   closed. Before a comparison, look at an early screenshot of a run, and
   make sure that no dialog stays open under the browser.
+  `dismiss-tips.yaml` now waits up to 15 s for the changelog and taps
+  "Great!" until it closes. An `extendedWaitUntil` with a 10 s timeout
+  failed after 2 s there, so the flow uses a `repeat` loop.
 
 - In zsh, an unquoted variable that holds several paths stays one word.
   Give `summarize.py` the run folders as a glob or an array, for example
