@@ -2278,6 +2278,11 @@ class WebViewFullState extends State<WebViewFull>
           }),
           onConsoleMessage: (controller, consoleMessage) => PerfTrace.cb(_tabUid, 'onConsoleMessage', () async {
             if (consoleMessage.message != "") {
+              // Page probe records go to logcat, and not to the terminal (which would rebuild the tabs)
+              if (PerfTrace.enabled && consoleMessage.message.startsWith("[PDA-PERF] ")) {
+                PerfTrace.emit('PDA-PERF-PROBE', consoleMessage.message.substring(11));
+                return;
+              }
               if (consoleMessage.message.contains("GM already defined")) {
                 log("GM already present, skipping re-injection");
                 return;

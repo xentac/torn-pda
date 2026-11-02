@@ -29,7 +29,8 @@ export MAESTRO_CLI_NO_ANALYTICS=1
 start_proxy() {
   local log=$1
   shift
-  "$here/replay.sh" "$@" >"$log" 2>&1 &
+  # Python buffers output to a file. Without this, the "listening" line can wait for traffic.
+  PYTHONUNBUFFERED=1 "$here/replay.sh" "$@" >"$log" 2>&1 &
   PROXY_PID=$!
   for _ in $(seq 1 100); do
     grep -q "listening" "$log" 2>/dev/null && return 0
