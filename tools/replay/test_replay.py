@@ -228,6 +228,18 @@ def replay(tmp_path):
             body=b"trade",
         ),
     ]
+    flows.insert(
+        0,
+        flow(
+            "GET",
+            "https://www.torn.com/factions.php?step=your",
+            req_headers={"Sec-Purpose": "prefetch"},
+            status=503,
+            ts=1_759_999_999.0,
+        ),
+    )
+    flows.append(flow("GET", "https://www.torn.com/factions.php?step=your", body=b"faction page"))
+    flows.append(flow("GET", "https://www.torn.com/css/main.css", status=304))
     rec = tmp_path / "rec.mitm"
     write(rec, flows)
     addon = pda_replay.PdaReplay()
@@ -259,6 +271,20 @@ async def test_replay_form_body_ignores_rfcv_and_falls_back(replay):
     r = await ask(addon, "POST", "https://www.torn.com/trade.php", b"step=other", form)
     assert r.content == b"trade" and r.headers[pda_replay.HEADER] == "loose"
     assert '"loose"' in (tmp / "misses.jsonl").read_text()
+
+
+async def test_replay_keeps_prefetches_apart_from_page_loads(replay):
+    addon, _, _ = replay
+    r = await ask(addon, "GET", "https://www.torn.com/factions.php?step=your")
+    assert r.status_code == 200 and r.content == b"faction page"
+    r = await ask(addon, "GET", "https://www.torn.com/factions.php?step=your", headers={"Sec-Purpose": "prefetch"})
+    assert r.status_code == 503
+
+
+async def test_replay_skips_not_modified_answers(replay):
+    addon, _, _ = replay
+    r = await ask(addon, "GET", "https://www.torn.com/css/main.css")
+    assert r.status_code == 502
 
 
 async def test_replay_misses_never_forward(replay):

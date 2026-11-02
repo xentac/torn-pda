@@ -30,7 +30,7 @@ import urllib.parse
 from mitmproxy import certs, ctx, http, io
 
 HEADER = "x-pda-replay"
-DEFAULT_IGNORE = "rfcv,_,key,timestamp"
+DEFAULT_IGNORE = "rfcv,_,key,timestamp,t"
 
 
 def _utc(ts: float) -> str:
@@ -86,7 +86,11 @@ class PdaReplay:
     def _url_key(self, r: http.Request) -> tuple:
         ignore = self._ignore()
         q = sorted((k, v) for k, v in r.query.items(multi=True) if k not in ignore)
-        return (r.method, r.pretty_host, r.path.split("?", 1)[0], tuple(q))
+        # Speculative prefetches (from Torn's speculation-rules header) and real loads
+        # of the same URL get different answers. Cloudflare refuses the prefetches
+        # with an empty 503, and a page load must not get that answer.
+        prefetch = "prefetch" in (r.headers.get("sec-purpose", "") + r.headers.get("purpose", ""))
+        return (r.method, r.pretty_host, r.path.split("?", 1)[0], tuple(q), prefetch)
 
     def _body_key(self, r: http.Request) -> str:
         if not r.raw_content:
@@ -106,6 +110,9 @@ class PdaReplay:
             with open(path, "rb") as f:
                 for fl in io.FlowReader(f).stream():
                     if not isinstance(fl, http.HTTPFlow) or fl.response is None:
+                        continue
+                    # A replay starts with an empty browser cache, so "not modified" is no answer.
+                    if fl.response.status_code == 304:
                         continue
                     uk = self._url_key(fl.request)
                     self.urls.setdefault(uk, []).append(fl)
