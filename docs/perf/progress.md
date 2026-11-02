@@ -47,8 +47,8 @@ Last update: 2026-11-01.
 | Anonymized file | Raw capture | Usable for replay |
 |---|---|---|
 | `anon/onboarding.mitm` | `20261102T013938Z-onboarding` | Yes. API calls only. |
-| `anon/faction.mitm` | `20261102T025600Z-faction` | Yes. Captured with a cleared cache. |
-| `anon/crimes.mitm` | `20261102T025850Z-crimes` | Yes. Captured with a cleared cache. No test flow yet. |
+| `anon/faction.mitm` | `20261102T025600Z-faction` | Yes. Flow: `flows/faction.yaml`, with every tab and the clicks from the capture. The 9mm Uzi tap does not open its 3D view yet. |
+| `anon/crimes.mitm` | `20261102T025850Z-crimes` | Yes. Flow: `flows/crimes.yaml` (hub, Search for Cash, Graffiti, two arson collects, Cracking). |
 | `anon/attack.mitm` | `20261102T035242Z-attack` | Yes. Profile, attack, four hits with the Macana, hospitalize, attack log. Flow: `flows/attack.yaml`. |
 
 All four files were anonymized again on 2026-11-01 after two anonymizer fixes
@@ -108,15 +108,26 @@ tools/replay/run-test.sh tools/replay/flows/faction.yaml ~/pda-recordings/anon/f
   keeps its entries. Torn sends `userID=0` for "no player", and the fake 7 made
   the faction war data miss, so the faction list spun forever. The anonymizer
   now never maps 0, and the short entries are gone from `idmap.json`.
-- The faction flow only opens the page. Your clicks and scrolls in the capture
-  are answers in the recording, but a test sees them only if its flow does the
-  same steps.
+- A test sees only the steps that its flow does. To write a flow, run it with
+  `MITM_ARGS="--set pda_replay_log_hits=true"` and compare the miss log with
+  the requests in the recording.
+- The faction and crime pages never stop moving (timers, fires). Maestro then
+  waits long after every tap, so the flows set `waitToSettleTimeoutMs: 500`.
+  On a phone, the armory sections are a dropdown (`armour-nav-list`).
+- The arson page polls its list. The replay gave the list from after the
+  collects before the flow collected. Now a repeated request gets its next
+  answer only after the requests between the two answers in the capture
+  (`hold` in the miss log).
+- The anonymizer replaced known player names only before `[`, `</a>` or `"`,
+  so a profile title ("Name' Profile") kept the real name. Torn also sends
+  the faction war data as `text/html`, so the anonymizer never read the
+  attacker names in it. Names now go everywhere, except names that are also
+  words in Torn's scripts. The faction tag and the lowercase faction name are
+  replaced too.
 
 ## Next steps
 
-1. Write `flows/crimes.yaml` for the crimes capture. If the faction test must
-   cover more than the page load, add your capture's clicks to
-   `flows/faction.yaml`.
+1. Optional: make the faction flow open the 9mm Uzi's 3D view.
 2. Report to the maintainer: PDA's tips block all taps on the page until the
    user taps their target.
 3. Build the APK with `PDA_PERF=true` and `PDA_PROXY`, install it, build

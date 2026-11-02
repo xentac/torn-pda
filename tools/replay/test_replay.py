@@ -253,6 +253,57 @@ def test_anonymize_keeps_zero_ids(files):
     assert read(files["anon"])[-1].request.query["userID"] == "0"
 
 
+def test_anonymize_names_outside_their_usual_places(files):
+    """A profile title, war data sent as text/html, the own faction's tag and lowercase name."""
+    extra = [
+        flow(
+            "GET",
+            f"https://www.torn.com/profiles.php?XID={OTHER_ID}",
+            body=f"<title>{OTHER_NAME}' Profile | TORN</title><h4>{OTHER_NAME}' Profile</h4>".encode(),
+            headers={"content-type": "text/html"},
+            ts=1_760_000_003.0,
+        ),
+        flow(
+            "POST",
+            "https://www.torn.com/faction_wars.php?step=getwarusers",
+            body=json.dumps(
+                {
+                    "5551234": {"userID": 5551234, "playername": "RivalGuy7", "factionID": 77777, "factiontag": "RIVL"},
+                    "7654321": {"userID": 7654321, "playername": "Ally", "factionID": int(FACTION_ID), "factiontag": "MYFA",
+                                 "tag": "https://factiontags.torn.com/45678-1.png"},
+                    "1234567": {"userID": 1234567, "playername": "window", "factionID": 1},
+                }
+            ).encode(),
+            headers={"content-type": "text/html; charset=UTF-8"},
+            ts=1_760_000_004.0,
+        ),
+        flow(
+            "GET",
+            "https://www.torn.com/page.php?sid=chain",
+            body=b"<p>RivalGuy7 hit Ally. View faction MYFA. my faction.cosiso. window.onload</p>",
+            headers={"content-type": "text/html"},
+            ts=1_760_000_005.0,
+        ),
+        flow(
+            "GET",
+            "https://www.torn.com/js/app.js",
+            body=b"window.onload = function () {};",
+            headers={"content-type": "application/javascript"},
+            ts=1_760_000_006.0,
+        ),
+    ]
+    write(files["raw"], recording() + extra)
+    assert run_anonymize(files) == 0
+    text = everything(read(files["anon"]))
+    for real in (f"{OTHER_NAME}'", "RivalGuy7", ">Ally", "Ally.", "MYFA", "my faction"):
+        assert real not in text, real
+    # "window" is a player name here, but also a word in Torn's script. It stays.
+    assert "window.onload" in text
+    assert "https://factiontags.torn.com/" in text
+    # Other factions' tags stay.
+    assert "RIVL" in text
+
+
 def test_anonymize_refuses_to_write_a_leak(files):
     leak = recording()
     leak.append(
@@ -322,12 +373,41 @@ async def ask(addon, method, url, body=b"", headers=None):
 
 
 async def test_replay_order_and_last_answer_repeats(replay):
+    """Nothing came between the two recorded answers, so a repeat (like a second hit in a fight) moves on."""
     addon, _, _ = replay
     r1 = await ask(addon, "GET", "https://www.torn.com/page.php?sid=a&rfcv=999")
     r2 = await ask(addon, "GET", "https://www.torn.com/page.php?rfcv=x&sid=a")
     r3 = await ask(addon, "GET", "https://www.torn.com/page.php?sid=a")
     assert (r1.content, r2.content, r3.content) == (b"first", b"second", b"second")
     assert r1.headers[pda_replay.HEADER] == "hit"
+
+
+async def test_replay_polled_list_changes_only_after_the_action(tmp_path):
+    """Torn's arson page polls its list. The list from after "Collect" must wait for the collect."""
+    base = "https://www.torn.com/page.php?sid=crimesData"
+    form = {"content-type": "application/x-www-form-urlencoded"}
+    flows = [
+        flow("POST", base + "&step=crimesList", req_body=b"typeID=13", req_headers=form, body=b"before", ts=1_760_000_000.0),
+        flow("GET", base + "&step=attempt&value1=5", body=b"collected", ts=1_760_000_004.0),
+        flow("GET", base + "&step=attempt&value1=6", body=b"collected 2", ts=1_760_000_004.5),
+        flow("POST", base + "&step=crimesList", req_body=b"typeID=13", req_headers=form, body=b"after", ts=1_760_000_005.0),
+        # Another page in between does not count.
+        flow("POST", "https://www.torn.com/page.php?sid=newsTickers", body=b"news", ts=1_760_000_002.0),
+    ]
+    rec = tmp_path / "rec.mitm"
+    write(rec, flows)
+    addon = pda_replay.PdaReplay()
+    with taddons.context(addon) as tctx:
+        tctx.configure(addon, pda_replay=str(rec), pda_replay_misses=str(tmp_path / "misses.jsonl"))
+        poll = lambda: ask(addon, "POST", base + "&step=crimesList", b"typeID=13", form)
+        got = [(await poll()).content]
+        await ask(addon, "POST", "https://www.torn.com/page.php?sid=newsTickers")
+        got.append((await poll()).content)
+        got.append((await ask(addon, "GET", base + "&step=attempt&value1=5")).content)
+        got.append((await poll()).content)
+        got.append((await ask(addon, "GET", base + "&step=attempt&value1=6")).content)
+        got.append((await poll()).content)
+        assert got == [b"before", b"before", b"collected", b"before", b"collected 2", b"after"]
 
 
 async def test_replay_form_body_ignores_rfcv_and_falls_back(replay):
