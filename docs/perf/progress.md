@@ -4,14 +4,18 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-02 (second session).
+Last update: 2026-11-02 (third session).
 
 ## State
 
-- Branch `perf/analysis`, based on `origin/develop` at `fe76815d`. It is not
-  pushed. Ask before you push it to the fork (`xentac`). Never push upstream.
+- Branch `perf/analysis`, based on `origin/develop` at `fe76815d`. It is on
+  the fork (`xentac/perf/analysis`) since 2026-11-02. Ask before each push to
+  the fork. Never push upstream. Before the first push, one commit was
+  rewritten to keep a security detail out of the public history. The old
+  history is in the local branch `perf/analysis-backup`. Never push that
+  branch.
 - The report is published as a shared artifact:
-  https://claude.ai/artifact/GCojySixXsQJxfYYTqNxfK (version 4). The source is
+  https://claude.ai/artifact/GCojySixXsQJxfYYTqNxfK (version 12). The source is
   `report.md`.
 - Track T (record and replay) works from start to finish on the emulator:
   capture, anonymize, snapshot, automated test run. Three flows pass:
@@ -317,11 +321,14 @@ The original plan:
 
 ## Next steps
 
-1. The A1 and B1 quick fixes from the report, one branch each. Measure each
-   one before and after with `run-baseline.sh` and `summarize.py`, on the
-   same day, so that the Remote Config flags are the same.
-2. A `--compare BASELINE` option for `summarize.py`, which prints the change
-   of each median and marks changes outside the p25 to p75 range.
+1. The A1 and B1 quick fixes from the report, one branch each. For each fix,
+   build the APK before and after the fix, and run both in one session with
+   `PDA_APKS` (see the replay README). The builds then alternate, and the
+   Remote Config flags are the same. Compare them with
+   `summarize.py --compare`, and name the success metric of the fix with
+   `--metric`.
+2. Done: `summarize.py --compare` (see "Comparing two builds" in
+   `measurement.md`).
 3. A test userscript that calls `PDA_httpGet` at document start, in the
    snapshot, so that finding 1.8 gets a number.
 4. 16 runs for the profile and faction pages, where the `nav.load` spread is
@@ -347,6 +354,24 @@ The original plan:
   `log()`. Not explained yet.
 - First numbers (8 runs to come): 12 to 15 `getHtml` calls on each attack
   page, as the report estimated, and about 62 over the whole crimes visit.
+- The emulator drifts during a session. On one build, the faction runs got
+  faster from run 1 to run 8: `nav.load` from 1750 to 1545 ms, and
+  `lag.totalMs` from 1147 to 666 ms. The first four and the last four runs
+  differ by 10 to 12 % (p = 0.03). The cause is not known, for example the
+  host CPU or disk cache. Thus a build that runs after another build seems
+  faster. Run the two builds in alternation in one session (`PDA_APKS`),
+  never one after the other.
+- The first `--compare` rule (the p25 to p75 ranges do not overlap) marked 44
+  metrics on two halves of the same attack runs. `summarize.py` now uses a
+  rank test (Mann-Whitney, exact) on the per-run values. It tests only the
+  main metrics and the `--metric` names. On odd and even runs of each flow it
+  marked 0 or 1 of about 30 metrics, as expected at p < 0.05.
+- A/A check of `PDA_APKS` on 2026-11-02: one APK under two names, 4 runs
+  each of the attack flow, in the order A B B A A B B A. All 8 runs passed.
+  1 of 21 tests got a mark (p = 0.029), as expected by chance. The same
+  runs against the baseline from the morning differ by 6 % in `nav.load` on
+  the attack page (p = 0.048). Thus compare only builds that ran in the same
+  session. The runs are in `~/pda-recordings/runs/*-attack-aa-*`.
 
 ### Later
 
