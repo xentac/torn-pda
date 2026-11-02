@@ -22,11 +22,30 @@ fi
 PDA_MISSES="$out/misses.jsonl" start_proxy "$out/proxy.log" "$@"
 use_proxy
 "$here/emu-clock.sh" "$(python3 "$here/rec_start.py" "$1")"
+# What a comparison must keep equal. tools/perf/summarize.py refuses to mix runs that differ here.
+pkg=$(adb shell dumpsys package "$PDA_APP")
+python3 - "$out/env.json" <<PY
+import json, sys
+json.dump({
+    "app_version": "$(grep -m1 -o 'versionName=[^ ]*' <<<"$pkg" | cut -d= -f2)",
+    "app_installed": "$(grep -m1 -o 'lastUpdateTime=.*' <<<"$pkg" | cut -d= -f2)",
+    "webview": "$(adb shell dumpsys webviewupdate | grep -m1 -o 'Current WebView package.*' | tr -d '\r')",
+    "avd": "$(adb emu avd name | head -1 | tr -d '\r')",
+    "snapshot": "$PDA_SNAPSHOT",
+    "recordings": "$*",
+    "mitm_args": "${MITM_ARGS:-}",
+}, open(sys.argv[1], "w"), indent=1)
+PY
+# A long flow logs more than the default buffer holds.
+adb logcat -G 16M
 adb logcat -c
 status=0
 maestro test --test-output-dir "$out/maestro" "$flow" >"$out/maestro.log" 2>&1 || status=$?
+# PDA_PERF builds write the record of a page 10 s after its load. Wait for the last page.
+sleep "${PDA_PERF_WAIT:-12}"
 adb logcat -d >"$out/logcat.txt"
-grep -E "PDA-PERF" "$out/logcat.txt" >"$out/perf.txt" || true
+# PDA's own lines. Chromium also logs the probe's console line ("[PDA-PERF] {"), cut short.
+grep -E "\[PDA-PERF-(DART|PROBE)\] " "$out/logcat.txt" >"$out/perf.txt" || true
 misses=$(grep -c '"miss"' "$out/misses.jsonl" 2>/dev/null || true)
 echo "$name: $([ $status -eq 0 ] && echo passed || echo FAILED), ${misses:-0} misses. Results in $out"
 exit $status
