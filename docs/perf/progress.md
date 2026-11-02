@@ -49,7 +49,12 @@ Last update: 2026-11-01.
 | `anon/onboarding.mitm` | `20261102T013938Z-onboarding` | Yes. API calls only. |
 | `anon/faction.mitm` | `20261102T025600Z-faction` | Yes. Captured with a cleared cache. |
 | `anon/crimes.mitm` | `20261102T025850Z-crimes` | Yes. Captured with a cleared cache. No test flow yet. |
-| `anon/attack.mitm` | `20261102T020236Z-attack` | No. Captured before the cache fix, so Torn's CSS and JS are missing. Capture it again. |
+| `anon/attack.mitm` | `20261102T035242Z-attack` | Yes. Profile, attack, four hits with the Macana, hospitalize, attack log. Flow: `flows/attack.yaml`. |
+
+All four files were anonymized again on 2026-11-01 after two anonymizer fixes
+(see the lessons). The old files held the real player ID in the websocket
+login tokens and are deleted. `idmap.before-cleanup.json` is the map before
+the short IDs were removed.
 
 `20261102T015221Z-navigation` and the other early raw files are not
 anonymized and were captured with a warm cache. They can be deleted.
@@ -82,12 +87,38 @@ tools/replay/run-test.sh tools/replay/flows/faction.yaml ~/pda-recordings/anon/f
   a tap on their target. `make-snapshot.sh` closes them through adb.
 - The sidebar polls `sidebarAjaxAction.php?action=servertime` every few
   seconds. Worth a look in the report.
+- The profile page shows one more PDA tip, on the green person icon above the
+  page. Until it closes, it takes every tap on the page. `make-snapshot.sh` now
+  opens a profile (`flows/open-profile.yaml`) and closes it. The script needs
+  the attack recording as its third argument.
+- Torn's attack page posts every fight step as a multipart form to one URL.
+  Replay compares form fields, not the raw body, because the boundary string
+  is random.
+- The attack page polls every 4 seconds. A poll at another moment than in the
+  capture got an old "not started" answer and ended the fight. Replay now never
+  goes back in recorded time on one URL, and logs such answers as `state`.
+- Fights run on real time. After the last hit, the page gives 30 seconds to
+  choose and then sends "leave" by itself. Maestro waits for the screen to
+  settle after each tap, which took about 25 seconds on the attack page. The
+  flow sets `waitToSettleTimeoutMs: 500` on its taps.
+- The anonymizer did not look inside the websocket login token (a JWT), so the
+  real player ID stayed in it. It now rewrites the token and its leak check
+  decodes it.
+- An older version of the anonymizer mapped short numbers, also 0, and the map
+  keeps its entries. Torn sends `userID=0` for "no player", and the fake 7 made
+  the faction war data miss, so the faction list spun forever. The anonymizer
+  now never maps 0, and the short entries are gone from `idmap.json`.
+- The faction flow only opens the page. Your clicks and scrolls in the capture
+  are answers in the recording, but a test sees them only if its flow does the
+  same steps.
 
 ## Next steps
 
-1. Capture the attack again (start from `live-ready`, run `capture.sh attack`),
-   anonymize it, and write `flows/attack.yaml` with the same steps.
-2. Write `flows/crimes.yaml` for the crimes capture.
+1. Write `flows/crimes.yaml` for the crimes capture. If the faction test must
+   cover more than the page load, add your capture's clicks to
+   `flows/faction.yaml`.
+2. Report to the maintainer: PDA's tips block all taps on the page until the
+   user taps their target.
 3. Build the APK with `PDA_PERF=true` and `PDA_PROXY`, install it, build
    `replay-ready` again, and run each test several times for a baseline.
 4. Track 0 from the report: probe hooks in `PDA_PERF` builds, the control app,

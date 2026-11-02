@@ -6,9 +6,13 @@ Live connections to hosts that match `pda_replay_guard` (torn.com by default)
 are refused, so that a mistake in the configuration cannot reach Torn.
 
 Matching: method, host, path, the query without the ignored parameters, and the
-body. Form bodies are compared without the ignored parameters. The same request
+body. Form bodies (URL-encoded and multipart) are compared field by field without
+the ignored parameters, so that the random multipart boundary does not count. The same request
 seen several times gets its recorded answers in order. After the last one, it
-keeps getting the last one, so that a second visit to a page still works. If no
+keeps getting the last one, so that a second visit to a page still works. The
+replay never goes back in recorded time on one URL: if it already gave a later
+answer for the same URL (other body), the request gets that answer, logged as
+"state". A poll during a fight must see the fight, not a poll from before it. If no
 recording has the same body, the addon uses a recording with the same URL and
 logs a "loose" match.
 
@@ -47,11 +51,13 @@ class PdaReplay:
         self.urls: dict[tuple, list[http.HTTPFlow]] = {}
         self.exact: dict[tuple, list[http.HTTPFlow]] = {}
         self.cursor: dict[tuple, int] = {}
+        # The answer with the latest recorded time that the replay gave, per URL key.
+        self.latest: dict[tuple, http.HTTPFlow] = {}
         self.guard: re.Pattern | None = None
         self.first_ts: float | None = None
         # Cookies that the recorded browser sent, per site, such as "torn.com".
         self.cookies: dict[str, dict[str, str]] = {}
-        self.stats = {"hit": 0, "loose": 0, "miss": 0, "blocked": 0}
+        self.stats = {"hit": 0, "loose": 0, "state": 0, "miss": 0, "blocked": 0}
 
     def load(self, loader):
         loader.add_option("pda_replay", str, "", "Comma-separated anonymized recordings to answer from.")
@@ -105,15 +111,19 @@ class PdaReplay:
     def _body_key(self, r: http.Request) -> str:
         if not r.raw_content:
             return ""
-        if r.urlencoded_form:
+        form = r.urlencoded_form or r.multipart_form
+        if form:
             ignore = self._ignore()
-            return repr(sorted((k, v) for k, v in r.urlencoded_form.items(multi=True) if k not in ignore))
+            if isinstance(next(iter(form.keys())), bytes):
+                ignore = {k.encode() for k in ignore}
+            return repr(sorted((k, v) for k, v in form.items(multi=True) if k not in ignore))
         return hashlib.sha256(r.get_content(strict=False) or b"").hexdigest()
 
     def _load(self, paths: str):
         self.urls.clear()
         self.exact.clear()
         self.cursor.clear()
+        self.latest.clear()
         self.cookies.clear()
         self.first_ts = None
         n = 0
@@ -147,13 +157,18 @@ class PdaReplay:
     def find(self, r: http.Request) -> tuple[str, http.HTTPFlow | None]:
         uk = self._url_key(r)
         ek = (uk, self._body_key(r))
+        kind = "hit"
         rec = self._next(("exact", ek), self.exact.get(ek))
-        if rec:
-            return "hit", rec
-        rec = self._next(("url", uk), self.urls.get(uk))
-        if rec:
-            return "loose", rec
-        return "miss", None
+        if not rec:
+            kind = "loose"
+            rec = self._next(("url", uk), self.urls.get(uk))
+        if not rec:
+            return "miss", None
+        latest = self.latest.get(uk)
+        if latest and latest.request.timestamp_start > rec.request.timestamp_start:
+            return "state", latest
+        self.latest[uk] = rec
+        return kind, rec
 
     # Hooks --------------------------------------------------------------------
 
@@ -174,8 +189,8 @@ class PdaReplay:
             self._answer_miss(flow, "miss")
             return
         self.stats[kind] += 1
-        if kind == "loose":
-            self._log(flow, "loose")
+        if kind in ("loose", "state"):
+            self._log(flow, kind)
         delay = self._delay(rec)
         if delay > 0:
             await asyncio.sleep(delay)
@@ -223,6 +238,14 @@ class PdaReplay:
         # The app may still send a real key. Keep it out of the log.
         url = re.sub(r"([?&]key=)[^&]+", r"\1REDACTED", url)
         entry = {"t": _utc(time.time()), "kind": kind, "method": flow.request.method, "url": url}
+        form = flow.request.urlencoded_form or flow.request.multipart_form
+        if form:
+            # Field names, and the value of "step" (Torn's action name). Other values can hold keys.
+            fields = [k.decode() if isinstance(k, bytes) else k for k in form.keys()]
+            entry["fields"] = fields
+            step = form.get("step") or form.get(b"step")
+            if step:
+                entry["step"] = step.decode() if isinstance(step, bytes) else step
         logging.info("pda-replay: %s %s %s", kind, flow.request.method, url)
         if path:
             with open(path, "a") as f:

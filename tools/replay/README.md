@@ -173,6 +173,10 @@ pda_replay_latency=recorded"` keeps the recorded server time per answer, and
 - A request with no recording gets a 502 with the header
   `x-pda-replay: miss`, and goes to the miss log. Compare the miss logs of
   two builds as part of the behavioral diff.
+- The replay never goes back in recorded time on one URL. A poll that comes
+  at another moment than in the recording gets the newest answer
+  that the replay gave for the same URL, for example the attack state after
+  "Start fight". The miss log marks these answers as `state`.
 - Google and Firebase stay live, so the remote feature flags come from the
   network. For a comparison of two builds, run both on the same day, or
   set the flag values in the test.
@@ -194,7 +198,7 @@ with `MAESTRO_CLI_NO_ANALYTICS=1`.
    again. The fake key is the one that `pda_anonymize.py` printed.
 
    ```sh
-   PDA_FAKE_KEY=... tools/replay/make-snapshot.sh "$PDA_REC_DIR/anon/onboarding.mitm" "$PDA_REC_DIR/anon/faction.mitm"
+   PDA_FAKE_KEY=... tools/replay/make-snapshot.sh "$PDA_REC_DIR/anon/onboarding.mitm" "$PDA_REC_DIR/anon/faction.mitm" "$PDA_REC_DIR/anon/attack.mitm"
    ```
 
    It clears the app, makes PDA the app for torn.com links and enters the

@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Builds the emulator snapshot that replay tests start from ($PDA_SNAPSHOT).
-#   PDA_FAKE_KEY=... tools/replay/make-snapshot.sh ONBOARDING.mitm PAGE.mitm
-# ONBOARDING answers the API key check. PAGE is any page recording: setup.yaml
-# opens the faction page once to get the first-run tips out of the way.
+#   PDA_FAKE_KEY=... tools/replay/make-snapshot.sh ONBOARDING.mitm FACTION.mitm PROFILE.mitm
+# ONBOARDING answers the API key check. setup.yaml opens the faction page once and
+# open-profile.yaml opens a profile once, to get the first-run tips out of the way.
+# PROFILE must have the profile in open-profile.yaml (the attack recording has it).
 # Needs the replay shell (mitmproxy in Python), maestro and adb.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 . "$here/common.sh"
-[ $# -ge 2 ] || { echo "usage: make-snapshot.sh ONBOARDING.mitm PAGE.mitm" >&2; exit 2; }
+[ $# -ge 3 ] || { echo "usage: make-snapshot.sh ONBOARDING.mitm FACTION.mitm PROFILE.mitm" >&2; exit 2; }
 : "${PDA_FAKE_KEY:?set PDA_FAKE_KEY to the fake API key that pda_anonymize.py printed}"
 # PDA's browser tips are invisible to Maestro: the overlay is an empty full-screen
 # element. They come in a fixed order, a short time after the first page load, and
@@ -15,6 +16,9 @@ here=$(cd "$(dirname "$0")" && pwd)
 # ("Options menu"), the "..." button ("Quick menu") and the "+" button ("New tab
 # button"). The targets are fractions of the screen size.
 TIP_TARGETS=("0.44 0.09" "0.85 0.95" "0.95 0.95")
+# The first profile page shows one more tip ("Did you know?"). It points at the
+# green person icon at the right of PDA's bar above the page.
+PROFILE_TIP_TARGETS=("0.954 0.134")
 
 ui_dump() {
   adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
@@ -31,12 +35,13 @@ screen_has() {
   ui_dump | grep -qF "$1"
 }
 
+# Closes one tip for each target given, in order.
 close_pda_tips() {
   local size w h target i
   size=$(adb shell wm size | grep -o '[0-9]*x[0-9]*' | tail -1)
   w=${size%x*}
   h=${size#*x}
-  for target in "${TIP_TARGETS[@]}"; do
+  for target in "$@"; do
     for i in $(seq 1 30); do
       tip_overlay && break
       [ "$i" = 30 ] && { echo "Expected a PDA tip for the target $target, but none appeared." >&2; exit 1; }
@@ -58,8 +63,10 @@ adb shell pm clear "$PDA_APP" >/dev/null
 # Open torn.com links in PDA, not in Chrome.
 adb shell pm set-app-links-user-selection --user 0 --package "$PDA_APP" true torn.com www.torn.com
 maestro test -e PDA_FAKE_KEY="$PDA_FAKE_KEY" "$here/flows/setup.yaml"
-close_pda_tips
+close_pda_tips "${TIP_TARGETS[@]}"
 maestro test "$here/flows/dismiss-tips.yaml"
+maestro test "$here/flows/open-profile.yaml"
+close_pda_tips "${PROFILE_TIP_TARGETS[@]}"
 if tip_overlay || screen_has "Swipe right to reveal the sidebar"; then
   echo "A tip is still open. The snapshot was not saved." >&2
   exit 1
