@@ -74,8 +74,5 @@ if tip_overlay || screen_has "Swipe right to reveal the sidebar"; then
   exit 1
 fi
 maestro test "$here/flows/open-blank.yaml"
-# PDA_PERF builds write the record of a page 10 s after its load. Write the blank page's record
-# now, and not in the first seconds of every test.
-sleep 12
 adb emu avd snapshot save "$PDA_SNAPSHOT"
 echo "Saved snapshot $PDA_SNAPSHOT."
