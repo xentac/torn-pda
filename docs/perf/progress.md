@@ -362,8 +362,11 @@ The original plan:
 
 ### Fix 1.1: the travel check (done)
 
-Done on 2026-11-02, on the local branch `perf/a1-travel-check` (commit
-`ec113644`, not pushed). `assessTravel` no longer copies and parses the page
+Done on 2026-11-02, on the local branch `perf/a1-travel-check` (not
+pushed). The comparison below measured commit `ec113644`. The last commit
+`cef61134` adds only a guard: a check that ends after the next page load
+does not change the status. One attack run on `cef61134.apk` passed, with
+the same `getHtml` counts (4 on the attack page in that run). `assessTravel` no longer copies and parses the page
 10 times. One `callAsyncJavaScript` call waits in the page with a
 `MutationObserver` for up to 2 s. Only if the element appears, the app copies
 the page once for the stock upload. The check still runs on every page,
@@ -385,8 +388,10 @@ Each page now makes exactly 10 fewer copies. The report target "at most 2
 on a plain page" is for all of A1. The other copies come from other call
 sites, for example the `onLoadStart` copy. `lag.over50`, `setState` and
 `nav.load` did not change, except `setState` on the profile page (80 to 84,
-p = 0.019). This fix adds no `setState` call, so this mark is probably
-chance: about 1 of the 21 tests gets a mark by chance.
+p = 0.019). This fix adds no `setState` call, but `frames.n` rose by the
+same 4 (p = 0.016). With ten fewer parses on the main isolate, more frames
+and rebuilds can fall inside the profile visit. The change may be real, and
+it does no harm.
 
 The new observer has a cost that the probe sees. It counts one more
 observer (`hooks.moInjected` 2 to 3), and the observer callbacks take more
@@ -394,9 +399,17 @@ time in the page: `hooks.moCbMsInjected` from 0.4 to 3.2 ms on the profile
 page. Among the unmarked leads (`--all`), `longTasks.total` on the profile
 page went from 257 to 317 ms (p = 0.015), and `lag.totalMs` on the attack
 log from 298 to 397 ms (p = 0.021). About 12 such leads are expected by
-chance over the three pages. A cheaper option is a check every 200 ms in
-the page, with no observer: 10 `querySelector` calls, the same timing as
-the old loop. Decide before the branch goes to the fork.
+chance over the three pages. 3 ms of observer callbacks cannot cause
+60 ms of long tasks, so these leads are chance or a shift in timing. The
+observer stays: it finds the element at once, and a check every 200 ms
+would remove no measured cost. Check these leads again in the comparison
+of all of A1.
+
+No recording is from abroad, so the abroad path (the observer finds the
+element, one `getHtml`, the stock upload) was checked only by reading the
+code. To test it, turn on the remote debugging setting of PDA, then run
+the function body of `waitForSelectorJS` in the WebView devtools and add
+a `div.travel-home` element.
 
 ### Lessons from the baseline work
 
