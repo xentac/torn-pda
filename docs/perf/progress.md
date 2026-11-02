@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-02 (end of the fifth session).
+Last update: 2026-11-02 (sixth session).
 
 ## State
 
@@ -379,29 +379,10 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 
 ## Next steps
 
-0. Find what draws about 60 frames each second in the new `develop`
-   (see "A1 after the maintainer's commit 610af44f"). This is the next
-   task. A plan:
-
-   - Make sure first that the cause is in `610af44f` or later, and not in
-     the fork: the old build `50a4a3d9` and the new build `d4a7dbad` differ
-     only by the upstream commit and the rebase.
-   - Install `d4a7dbad.apk` (or a new build of `perf/analysis`), start
-     from `replay-ready` with the replay proxy, open a page, and wait until
-     it is idle. Take a Flutter timeline in profile mode (DevTools,
-     `flutter attach`), or a Perfetto trace. Look at what schedules each
-     frame: an `AnimationController` or `Ticker` that never stops, a
-     repeating `setState`, or a `ValueListenable` that changes on each
-     frame.
-   - Candidates in `610af44f`: new animations in the chat (for example
-     the arrival fade or the typing indicator), the browser bar, the
-     split layout, the chain widget, and the progress bar code (it now
-     skips the animation when the tab is not on screen).
-   - Also check whether the frames go on when the app shows no browser,
-     and whether a hidden tab draws them.
-   - Done when the widget that requests the frames is known. Then compare
-     the frame count with a build that stops it. If it is an upstream bug,
-     prepare a small PR, or a short report for the user to send.
+0. Done in the sixth session: the 60 frames each second come from the
+   changelog dialog (see "The 60 frames each second"). Still to do: the
+   user decides on an upstream PR or a short report, and the flow fix
+   for the changelog in `dismiss-tips.yaml`.
 
 1. The A1 and B1 quick fixes from the report, one branch each. For each fix,
    build the APK before and after the fix, and run both in one session with
@@ -521,6 +502,57 @@ On the new build, the profile page has a full record (`final` 0), not
 the `pagehide` record. Thus the profile page's time metrics are not
 comparable between the two builds.
 
+### The 60 frames each second
+
+Found on 2026-11-02 (sixth session). The source is the changelog dialog,
+not the browser. `_AnimatedChangelogWordmark` (`lib/utils/changelog.dart`)
+runs an `AnimationController` with `repeat()` for the gradient on the word
+"CHANGELOG". The browser does not cover the dialog with a route:
+`lib/main.dart` shows the app and the browser in an `IndexedStack`, and an
+`IndexedStack` does not stop the tickers of the hidden child. So the
+animation draws 60 frames each second under the browser.
+
+Why only the new build: `610af44f` changed `androidCompilation` from 698
+to 700, and `replay-ready` has 698. So the new build shows the changelog
+after the install, and the old build does not. `dismiss-tips.yaml` does
+not close it. The check runs before the dialog appears, and during the
+countdown the button text is "Great! (3)", which the full-match regex
+"Great!" does not match. All `d4a7dbad` runs in the A1 comparison had the
+dialog open under the browser.
+
+VM timeline (a profile build, `profileWidgetBuilds` and paint profiling
+on, idle profile page): with the dialog under the browser, 180 frames in
+3 s, each with an `AnimatedBuilder` and a `ShaderMask` build. After a tap
+on "Great!", 4 frames in 3 s. The VM timeline is a ring buffer: with paint
+profiling on, a trace of the dialog in front covers only 0.16 s. Check the
+time span of each trace.
+
+Measurement build: `8f24d8e4` on the local branch `perf/drawer-tickermode`
+wraps the hidden app child of the `IndexedStack` in
+`TickerMode(enabled: !browserShowInForeground)`. The navigator has a
+`GlobalKey`, so its state stays. Side effect: an open chat conversation
+on the app side counts as covered while the browser is in front
+(`chat_conversation_page.dart` reads `TickerMode`), so it stops its API
+poll. The chat window in the browser is not affected.
+
+Comparison: 8 runs each of `50a4a3d9`, `d4a7dbad` and `8f24d8e4` on the
+attack flow, alternated in one session, all 24 passed. Files in
+`~/pda-recordings/comparisons/frames-8f24d8e4-vs-d4a7dbad-vs-50a4a3d9/`.
+
+| Page | `frames.n` old, current, fix | `lag.totalMs` old, current, fix |
+|---|---|---|
+| `profiles.php?XID=N` | 92, 615, 97.5 | 777, 1115, 661 |
+| `page.php?sid=attack` | 34, 601.5, 48 | 820, 1099, 753 |
+| `page.php?sid=attackLog` | 58.5, 611, 62.5 | 334, 756, 270 |
+
+The fix against the current build: `frames.n` minus 84 to 92 % and
+`lag.totalMs` minus 31 to 64 % (all p < 0.01). The fix against the old
+build: `lag.totalMs` is 8 to 19 % lower (not significant), `nav.load` is
+the same. So the corrected A1 result is: fewer copies and rebuilds, and
+no new frame cost. The rise of `onLoadStop` on the attack page (26 to
+49 ms, p 0.005) stays with the fix. `frames.uiAvgMs` is higher in the fix
+only because the cheap animation frames are gone from the average.
+
 ### Fix 1.1: the travel check (done)
 
 Done on 2026-11-02, on the branch `perf/a1-travel-check` (deleted after
@@ -573,6 +605,11 @@ the function body of `waitForSelectorJS` in the WebView devtools and add
 a `div.travel-home` element.
 
 ### Lessons from the baseline work
+
+- When upstream changes `androidCompilation`, the new build shows the
+  changelog after the install, and `replay-ready` does not have it
+  closed. Before a comparison, look at an early screenshot of a run, and
+  make sure that no dialog stays open under the browser.
 
 - In zsh, an unquoted variable that holds several paths stays one word.
   Give `summarize.py` the run folders as a glob or an array, for example
