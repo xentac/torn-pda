@@ -15,7 +15,7 @@ Last update: 2026-11-02 (third session).
   history is in the local branch `perf/analysis-backup`. Never push that
   branch.
 - The report is published as a shared artifact:
-  https://claude.ai/artifact/GCojySixXsQJxfYYTqNxfK (version 12). The source is
+  https://claude.ai/artifact/GCojySixXsQJxfYYTqNxfK (version 13). The source is
   `report.md`.
 - Track T (record and replay) works from start to finish on the emulator:
   capture, anonymize, snapshot, automated test run. Three flows pass:
@@ -328,6 +328,28 @@ The original plan:
    Remote Config flags are the same. Compare them with
    `summarize.py --compare`, and name the success metric of the fix with
    `--metric`.
+
+   Start with fix 1.1 of A1 (the travel check in `travel_handler.dart`). The
+   success metric is `dart.counts.getHtml` at most 2 on a plain page. Make
+   the fix on a branch from `perf/analysis`, because the build needs the
+   `PDA_PERF` hooks. The old build exists:
+   `build/app/outputs/flutter-apk/app-profile.apk` (`apk_sha256`
+   `66642be7836d341b`, `lib/` as at `50a4a3d9`). Copy it out of `build/`
+   as `50a4a3d9.apk` before you build the fix, because the next build
+   overwrites it. Build the fix with the same flags (profile,
+   `PDA_PERF=true`, `PDA_PROXY=10.0.2.2:8080`), and name the copy after its
+   commit. Then run 8 runs of each build on the attack flow:
+
+   ```sh
+   export LD_LIBRARY_PATH=/run/opengl-driver/lib
+   PDA_APKS="OLD.apk NEW.apk" PDA_EMULATOR="nix develop /home/xentac/coding/infra/nixos-config#torn-pda -c emulator" \
+     nix shell --impure --expr 'with import <nixpkgs> {}; [ maestro (python3.withPackages (p: [p.mitmproxy])) ]' \
+     -c tools/replay/run-baseline.sh tools/replay/flows/attack.yaml 8 ~/pda-recordings/anon/attack.mitm ~/pda-recordings/anon/onboarding.mitm
+   ```
+
+   The 16 runs take about 25 minutes. Run them in the background. The
+   tests of the tools run in the replay shell:
+   `python3 -m pytest -o asyncio_mode=auto tools/perf tools/replay`.
 2. Done: `summarize.py --compare` (see "Comparing two builds" in
    `measurement.md`).
 3. A test userscript that calls `PDA_httpGet` at document start, in the
