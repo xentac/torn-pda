@@ -569,3 +569,14 @@ async def test_capture_marks_are_answered_locally(tmp_path):
     assert data["marks"][0]["label"] == "trade-open"
     assert data["hosts"]["www.torn.com"] == {"saved": 1, "unsaved": 0}
     assert data["hosts"]["example.com"] == {"saved": 0, "unsaved": 1}
+
+
+async def test_replay_answers_static_files(replay, tmp_path):
+    addon, tctx, tmp = replay
+    (tmp_path / "a (b).js").write_text("// script")
+    (tmp_path / "static.json").write_text(json.dumps({"https://example.com/x/a%20%28b%29.js": "a (b).js"}))
+    tctx.configure(addon, pda_replay_static=str(tmp_path / "static.json"))
+    r = await ask(addon, "GET", "https://example.com/x/a%20(b).js")
+    assert r.status_code == 200 and r.content == b"// script" and r.headers["content-type"] == "text/javascript"
+    assert r.headers[pda_replay.HEADER] == "static"
+    assert not (tmp / "misses.jsonl").exists()

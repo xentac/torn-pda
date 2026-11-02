@@ -21,6 +21,13 @@ PDA_REC_DIR=${PDA_REC_DIR:-$HOME/pda-recordings}
 PDA_APP=${PDA_APP:-com.manuito.tornpda}
 PDA_SNAPSHOT=${PDA_SNAPSHOT:-replay-ready}
 
+# Files that the replay proxy serves at fixed URLs (see pda_replay.py): the test
+# userscripts, and PDA's example scripts if they were saved (see the README).
+if [ -z "${PDA_STATIC+x}" ]; then
+  PDA_STATIC=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/userscripts/static.json
+  [ -f "$PDA_REC_DIR/userscripts/examples/static.json" ] && PDA_STATIC+=",$PDA_REC_DIR/userscripts/examples/static.json"
+fi
+
 # Maestro sends usage data unless this is set.
 export MAESTRO_CLI_NO_ANALYTICS=1
 
