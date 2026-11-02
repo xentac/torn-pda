@@ -16,3 +16,36 @@ PDA_SAVE=${PDA_SAVE:-"~d '(^|[.])torn[.]com\$'"}
 
 # Where recordings go. Keep this outside the repository.
 PDA_REC_DIR=${PDA_REC_DIR:-$HOME/pda-recordings}
+
+# The app under test and the emulator snapshot that replay tests start from.
+PDA_APP=${PDA_APP:-com.manuito.tornpda}
+PDA_SNAPSHOT=${PDA_SNAPSHOT:-replay-ready}
+
+# Maestro sends usage data unless this is set.
+export MAESTRO_CLI_NO_ANALYTICS=1
+
+# Starts replay.sh in the background with the given recordings and waits until it listens.
+# Sets PROXY_PID. The caller stops it with stop_proxy.
+start_proxy() {
+  local log=$1
+  shift
+  "$here/replay.sh" "$@" >"$log" 2>&1 &
+  PROXY_PID=$!
+  for _ in $(seq 1 100); do
+    grep -q "listening" "$log" 2>/dev/null && return 0
+    kill -0 "$PROXY_PID" 2>/dev/null || { cat "$log" >&2; return 1; }
+    sleep 0.2
+  done
+  echo "The replay proxy did not start. See $log." >&2
+  return 1
+}
+
+stop_proxy() {
+  [ -n "${PROXY_PID:-}" ] && kill "$PROXY_PID" 2>/dev/null && wait "$PROXY_PID" 2>/dev/null
+  PROXY_PID=
+}
+
+# Points the emulator at the proxy. Without this, the WebView would reach the live site.
+use_proxy() {
+  adb shell settings put global http_proxy "10.0.2.2:$PDA_PROXY_PORT"
+}

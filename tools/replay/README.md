@@ -183,6 +183,42 @@ pda_replay_latency=recorded"` keeps the recorded server time per answer, and
 If the proxy options are wrong, the addon still refuses live connections to
 `torn.com` (`pda_replay_guard`).
 
+## Automated runs
+
+The scripts below drive the emulator with [Maestro](https://maestro.dev) flows
+from `flows/`. They need the replay shell (Python with mitmproxy), `maestro`
+(`nix shell nixpkgs#maestro`) and `adb`. They turn off Maestro's usage data
+with `MAESTRO_CLI_NO_ANALYTICS=1`.
+
+1. Build the start state. When the onboarding or the tips change, build it
+   again. The fake key is the one that `pda_anonymize.py` printed.
+
+   ```sh
+   PDA_FAKE_KEY=... tools/replay/make-snapshot.sh "$PDA_REC_DIR/anon/onboarding.mitm" "$PDA_REC_DIR/anon/faction.mitm"
+   ```
+
+   It clears the app, makes PDA the app for torn.com links and enters the
+   key. Then it opens the faction page once, closes the first-run tips, and
+   saves the emulator snapshot `replay-ready`. PDA's own tips are invisible to Maestro,
+   so the script closes them with `adb` and checks that none is left.
+
+2. Run a test:
+
+   ```sh
+   tools/replay/run-test.sh tools/replay/flows/faction.yaml "$PDA_REC_DIR/anon/faction.mitm" "$PDA_REC_DIR/anon/onboarding.mitm"
+   ```
+
+   It loads the snapshot, sets the clock to the first request of the first
+   recording, starts the replay proxy, and runs the flow. The results go to
+   `$PDA_REC_DIR/runs/<time>-<flow>/`: the miss log, the proxy log, the
+   Maestro output with screenshots, logcat, and the `PDA-PERF` lines from a
+   `PDA_PERF` build. Set `PDA_APK` to install a build first. App data stays.
+
+Known differences from the capture: Torn's pages keep some view state in the
+browser's local storage, and the snapshot does not have it. An example is
+the last war view on the faction page. Requests that depend on it, such as the
+faction war polls with `userID=0`, are misses. They do not block the page.
+
 ## Tests
 
 ```sh

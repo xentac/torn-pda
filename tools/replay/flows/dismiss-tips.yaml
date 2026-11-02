@@ -1,0 +1,18 @@
+# Closes the first-run screens and tips that PDA and Torn show once.
+# setup.yaml runs this while it builds the replay-ready snapshot, and every test
+# runs it first. If a test needs it to close something, the snapshot is out of
+# date: add the new tip to setup.yaml and build the snapshot again.
+# PDA's own browser tips cannot be closed here: they are not visible to Maestro
+# as text. setup.yaml closes them while it builds the snapshot.
+appId: com.manuito.tornpda
+---
+- runFlow:
+    when:
+      visible: "Great!"
+    commands:
+      - tapOn: "Great!"
+- runFlow:
+    when:
+      visible: "Swipe right to reveal the sidebar"
+    commands:
+      - tapOn: "Okay"
