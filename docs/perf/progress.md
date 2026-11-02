@@ -435,6 +435,14 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    Step 1 is the measurement setup, because the replay snapshot has no
    userscripts, so no B1 cost shows:
 
+   - On its first run, PDA downloads five example scripts from GitHub
+     (`addDefaultScripts`, URLs in `UserScriptModel.exampleScriptURLs`).
+     Real users have them. The snapshot has none, because the replay
+     proxy answers these downloads with a 502 miss
+     (`~/pda-recordings/logs/make-snapshot.misses.jsonl`). Download the
+     five files once into `~/pda-recordings/`, and let the proxy serve
+     them at their GitHub URLs. None of them matches the attack flow
+     pages, so they measure the cost of scripts that do not match.
    - Write test userscripts in `tools/replay/userscripts/`: one at
      `document-start` that calls `PDA_httpGet` (for 1.8), and a few at
      `document-end` that match the attack flow pages (for 1.7). Each one
