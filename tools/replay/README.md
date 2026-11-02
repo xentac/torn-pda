@@ -106,6 +106,12 @@ Rules:
    hosts that were seen but not saved. To save more hosts in later
    captures, change `PDA_SAVE` in `common.sh`.
 
+`capture.sh` clears the WebView HTTP cache on the emulator before it starts
+(it stops PDA for that). The WebView does not request files that are in its
+cache, so the recording does not get them. A replay starts with an empty cache
+and requests them. The
+cookies stay, so you stay logged in. Start PDA again after the proxy is up.
+
 By default, only `torn.com` and its subdomains are saved. Google and Firebase
 traffic passes through without interception (`PDA_PASSTHROUGH`).
 
@@ -170,8 +176,9 @@ pda_replay_latency=recorded"` keeps the recorded server time per answer, and
 - Google and Firebase stay live, so the remote feature flags come from the
   network. For a comparison of two builds, run both on the same day, or
   set the flag values in the test.
-- The replay matches requests without the parameters `rfcv`, `_`, `key` and
-  `timestamp`. Change this with `--set pda_replay_ignore=...`.
+- The replay matches requests without the parameters `rfcv`, `_`, `key`,
+  `timestamp` and `t`. Torn's sidebar sends `t` as a millisecond time on
+  each `servertime` call. Change this with `--set pda_replay_ignore=...`.
 
 If the proxy options are wrong, the addon still refuses live connections to
 `torn.com` (`pda_replay_guard`).
