@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-02 (third session).
+Last update: 2026-11-02 (fourth session).
 
 ## State
 
@@ -329,16 +329,12 @@ The original plan:
    `summarize.py --compare`, and name the success metric of the fix with
    `--metric`.
 
-   Start with fix 1.1 of A1 (the travel check in `travel_handler.dart`). The
-   success metric is `dart.counts.getHtml` at most 2 on a plain page. Make
-   the fix on a branch from `perf/analysis`, because the build needs the
-   `PDA_PERF` hooks. The old build exists:
-   `build/app/outputs/flutter-apk/app-profile.apk` (`apk_sha256`
-   `66642be7836d341b`, `lib/` as at `50a4a3d9`). Copy it out of `build/`
-   as `50a4a3d9.apk` before you build the fix, because the next build
-   overwrites it. Build the fix with the same flags (profile,
-   `PDA_PERF=true`, `PDA_PROXY=10.0.2.2:8080`), and name the copy after its
-   commit. Then run 8 runs of each build on the attack flow:
+   The APKs are in `~/pda-recordings/apks/`, named after their commit.
+   Copy each new APK out of `build/` right after the build, because the
+   next build overwrites it. Commit the fix before you build, so that the
+   name matches `lib/`. Build with the same flags (profile,
+   `PDA_PERF=true`, `PDA_PROXY=10.0.2.2:8080`). Then run 8 runs of each
+   build on the attack flow:
 
    ```sh
    export LD_LIBRARY_PATH=/run/opengl-driver/lib
@@ -350,6 +346,12 @@ The original plan:
    The 16 runs take about 25 minutes. Run them in the background. The
    tests of the tools run in the replay shell:
    `python3 -m pytest -o asyncio_mode=auto tools/perf tools/replay`.
+
+   Fix 1.1 of A1 (the travel check) is done, see "Fix 1.1: the travel
+   check" below. The next fix is 1.3 (the progress bar), on a new branch
+   from `perf/analysis`. Use `ec113644.apk` as the old build only if the
+   new branch starts from `perf/a1-travel-check`. Otherwise use
+   `50a4a3d9.apk`.
 2. Done: `summarize.py --compare` (see "Comparing two builds" in
    `measurement.md`).
 3. A test userscript that calls `PDA_httpGet` at document start, in the
@@ -357,6 +359,44 @@ The original plan:
 4. 16 runs for the profile and faction pages, where the `nav.load` spread is
    over 10 %.
 5. Find why one crimes run went back to the blank page (see the lessons).
+
+### Fix 1.1: the travel check (done)
+
+Done on 2026-11-02, on the local branch `perf/a1-travel-check` (commit
+`ec113644`, not pushed). `assessTravel` no longer copies and parses the page
+10 times. One `callAsyncJavaScript` call waits in the page with a
+`MutationObserver` for up to 2 s. Only if the element appears, the app copies
+the page once for the stock upload. The check still runs on every page,
+because no recording shows on which pages the element can appear. The stock
+retry loop in `_sendStockInformation` runs only abroad and is not changed.
+
+Comparison: 8 runs of each build on the attack flow, alternated in one
+session, all 16 passed. Old build `50a4a3d9.apk`, new build
+`ec113644.apk`. The summaries and the comparison are in
+`~/pda-recordings/comparisons/a1-1.1-ec113644-vs-50a4a3d9/`.
+
+| Page | `getHtml` old | `getHtml` new | p |
+|---|---|---|---|
+| `profiles.php?XID=N` | 16 | 6 | 0.000 |
+| `page.php?sid=attack` | 15 | 5 | 0.000 |
+| `page.php?sid=attackLog` | 12 | 2 | 0.000 |
+
+Each page now makes exactly 10 fewer copies. The report target "at most 2
+on a plain page" is for all of A1. The other copies come from other call
+sites, for example the `onLoadStart` copy. `lag.over50`, `setState` and
+`nav.load` did not change, except `setState` on the profile page (80 to 84,
+p = 0.019). This fix adds no `setState` call, so this mark is probably
+chance: about 1 of the 21 tests gets a mark by chance.
+
+The new observer has a cost that the probe sees. It counts one more
+observer (`hooks.moInjected` 2 to 3), and the observer callbacks take more
+time in the page: `hooks.moCbMsInjected` from 0.4 to 3.2 ms on the profile
+page. Among the unmarked leads (`--all`), `longTasks.total` on the profile
+page went from 257 to 317 ms (p = 0.015), and `lag.totalMs` on the attack
+log from 298 to 397 ms (p = 0.021). About 12 such leads are expected by
+chance over the three pages. A cheaper option is a check every 200 ms in
+the page, with no observer: 10 `querySelector` calls, the same timing as
+the old loop. Decide before the branch goes to the fork.
 
 ### Lessons from the baseline work
 
