@@ -4,15 +4,21 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-02 (end of the fourth session).
+Last update: 2026-11-02 (fifth session).
 
 ## State
 
 - Start of a session: read this file, then run
   `gh pr list -R Manuito83/torn-pda --author xentac --state all` and update
   the table in "Upstream pull requests".
-- Fix 1.1 of A1 is done and is upstream PR #501 (open). The next fix is 1.3
-  (the progress bar). See "Next steps".
+- The maintainer's commit `610af44f` on `develop` (2026-11-02, "browser
+  speed") fixed most of A1 without our PRs: 1.1 (their own travel observer),
+  1.3 (the progress bar uses a `ValueNotifier`, and does not animate when
+  the bar is off or the tab is not on screen), the `onLoadStart` copy (now
+  only on `loader.php`), the `getUrl()` per progress event, the repeated
+  `endRefreshing()`, the attack condition, the terminal listener
+  (`listen: false`, 500 entries at most) and the show-case timer. PR #501
+  now has only a counter on top of their travel check. See "Next steps".
 - Branch `perf/analysis`, based on `origin/develop` at `fe76815d`. It is on
   the fork (`xentac/perf/analysis`) since 2026-11-02. Ask before each push to
   the fork. Never push upstream. Before the first push, one commit was
@@ -335,7 +341,7 @@ table when a PR is opened, changed or closed.
 
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
-| A1 1.1, travel check | `perf/a1-travel-check` | `travel-check-observer` | [#501](https://github.com/Manuito83/torn-pda/pull/501) | Open since 2026-11-02 |
+| A1 1.1, travel check counter | none (upstream did 1.1) | `travel-check-observer` (commit `b47209b0`, from local `travel-check-counter`) | [#501](https://github.com/Manuito83/torn-pda/pull/501) | Open. Reduced to the counter on 2026-11-02. The maintainer plans to merge it. |
 
 To see the state of all PRs:
 
@@ -343,11 +349,8 @@ To see the state of all PRs:
 gh pr list -R Manuito83/torn-pda --author xentac --state all
 ```
 
-- The Analyze and Test checks also fail on `develop` (since `fe76815d`
-  or earlier). The Analyze error is `ChatEngine.recheck` in
-  `native_chat.dart`, because the public stub
-  `lib/config/chat_engine.dart.example` has no `recheck`. Do not fix this in
-  a PR.
+- CI on `develop` is green again since `610af44f`. The stub
+  `lib/config/chat_engine.dart.example` now has `recheck`.
 - Measure each new fix against `perf/analysis` without the open fixes, so
   that each comparison shows one fix.
 - When a PR is merged, rebase `perf/analysis` on `origin/develop`. In a
@@ -394,14 +397,9 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    user a draft of the PR text in the scratchpad.
 
    Finding 1.2 (the app reads the page in about 75 places) has no quick
-   fix of its own. Its fix is track P, the page data layer. Two parts of
-   it are smaller: A1 deletes the `onLoadStart` copy, but only after the
-   maintainer says that nothing needs it. `_assessGeneral` runs at both
-   `onLoadStart` and `onLoadStop` and injects some scripts twice. No track
-   names this yet. Ask the maintainer about both.
+   fix of its own. Its fix is track P, the page data layer.
 
-   The user plans to send the maintainer a first message. The user's own
-   answers, before that message:
+   The user's own answers:
 
    - PR shape: one small PR per fix, each one testable alone. Keep doing
      this.
@@ -411,18 +409,28 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
      travel pages (for example in an abroad capture), and then limit the
      check to them.
 
-   Open questions for the maintainer (not asked yet, as of 2026-11-02):
+   The maintainer's answers (2026-11-02):
 
-   - Does anything need the `onLoadStart` copy, or can it be removed or
-     limited to `loader.php`?
-   - Is the `_assessGeneral` call in `onLoadStart` on purpose, or can it run
-     only once per page load?
-   - Does the maintainer want the `PDA_PERF` hooks or the replay tools in
-     the repository, or only the numbers in each PR?
-   - Does the maintainer want a PR that adds `recheck` to
-     `lib/config/chat_engine.dart.example`, so that CI Analyze passes? Use `ec113644.apk` as the old build only if the
-   new branch starts from `perf/a1-travel-check`. Otherwise use
-   `50a4a3d9.apk`.
+   - The `onLoadStart` copy: already limited to `loader.php` on `develop`.
+   - `_assessGeneral` at both `onLoadStart` and `onLoadStop`: the
+     maintainer thinks that it is for iOS, but does not remember. The
+     maintainer does not want to change such WebView behavior without
+     tests with beta testers, because such problems were hard to find in
+     the past. Do not propose this change without a test plan for iOS and
+     beta testers.
+   - The `PDA_PERF` hooks and the replay tools stay in the fork. Each PR
+     gives the numbers only.
+   - CI: fixed upstream, see "Upstream pull requests".
+
+   Next, in this order: rebase `perf/analysis` on `origin/develop`
+   (`610af44f` or later), and delete `perf/a1-travel-check`. Then build the
+   rebased branch and compare it with `50a4a3d9.apk` on the attack flow,
+   alternated in one session, to measure the A1 targets after the
+   maintainer's commit. This is also the new baseline. Then mark the done
+   A1 items in `report.md`. Before the next fix, the user asks the
+   maintainer which items the maintainer will do, so that the work does
+   not overlap again. Items that are still open: from 1.4, the iframe fast
+   path, the `http` race, and document-start scripts once per navigation.
 2. Done: `summarize.py --compare` (see "Comparing two builds" in
    `measurement.md`).
 3. A test userscript that calls `PDA_httpGet` at document start, in the
