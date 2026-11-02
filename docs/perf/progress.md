@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-02 (seventh session).
+Last update: 2026-11-02 (end of the seventh session).
 
 ## State
 
@@ -386,18 +386,20 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 
 ## Next steps
 
-0. Done in the sixth session: the 60 frames each second come from the
-   changelog dialog (see "The 60 frames each second").
-   `dismiss-tips.yaml` now closes the changelog. The maintainer makes
-   the `TickerMode` change upstream, so there is no PR from us. The local
-   branch `perf/drawer-tickermode` was only for the measurement. You can
-   delete it now.
+0. Start here. The user's decision on 2026-11-02 (seventh session): plan
+   as if the maintainer does no more work from the report. All open
+   report items are ours. The maintainer still reviews and merges our
+   PRs. Before each fix, look at `origin/develop` for the same change,
+   because the maintainer did most of A1 without notice once.
 
-   Done in the seventh session: the clean A1 run, with `5dad324a.apk`
-   against `50a4a3d9.apk`. The numbers are in "A1 after the maintainer's
-   commit 610af44f". The user has the numbers.
+   Done in the sixth and seventh sessions:
 
-   Lessons from the run:
+   - The 60 frames each second come from the changelog dialog (see
+     "The 60 frames each second"). `dismiss-tips.yaml` closes it now.
+   - The clean A1 run (see "A1 after the maintainer's commit 610af44f").
+   - The longer `onLoadStop` is noise (see "The longer onLoadStop").
+
+   Lessons from the seventh session:
 
    - The run folders of all sessions are in `~/pda-recordings/runs/`.
      For `50a4a3d9`, earlier sessions left 32 more folders there. Give
@@ -405,27 +407,72 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    - `run-baseline.sh` alternates the builds in pairs (A B B A A B B A),
      not one by one.
 
-   Next tasks:
+   The next task is B1, the userscript quick fixes (the user chose it).
+   `610af44f` already did three B1 items:
 
-   - Done in the seventh session: the longer `onLoadStop` is not a
-     regression (see "The longer onLoadStop"). Nothing to tell the
-     maintainer about it.
-   - Then B1 (the user chose it). `610af44f` already did three B1 items.
-     It removes only the registered script groups
-     (`_registeredScriptGroups`). It caches the compiled `@match`
-     patterns (`_compiledFor`). A second request for the same URL within
-     2 s gets the first answer (`sendOrShare` in `remote_snippets.dart`).
-     Still open: the 1.8 gate
-     on `__PDA_platformReadyPromise`, the end scripts in one
-     `evaluateJavascript`, and the lazy list from `getCondSources`. First
-     build the snapshot with test userscripts (item 3), because the
-     replay has no userscripts now.
-   - Then do the two items below ("Still to do from this list"). Tell
-     the user the numbers before anything goes to the maintainer.
-   - Later: the new `develop` makes requests that the recordings do not
-     have (`tchat/settings`, `tchat/rooms/tokens`,
-     `user/organizedcrime`). A new capture needs the user's login
-     (`live-ready`), so ask the user first.
+   - It removes only the registered script groups
+     (`_registeredScriptGroups`).
+   - It caches the compiled `@match` patterns (`_compiledFor`).
+   - A second request for the same URL within 2 s gets the first answer
+     (`sendOrShare` in `remote_snippets.dart`).
+
+   Open B1 items, in order of user impact:
+
+   1. Finding 1.8: `PDA_http*`, `PDA_storage` and `PDA_evaluateJavascript`
+      wait for `__PDA_platformReadyPromise`, which resolves only after the
+      page `load`. This change touches WebView behavior. The maintainer
+      wants an iOS and beta-tester test plan for such changes. Write the
+      plan into the PR text.
+   2. Finding 1.7, part 1: the document-end scripts run one
+      `evaluateJavascript` at a time in `onLoadStop`. Run them in one call.
+   3. Finding 1.7, part 3: `getCondSources` returns an
+      `UnmodifiableListView` over a lazy `where` and `map`, so each access
+      runs the chain again. Return a real list.
+   4. Finding 1.7, part 4: a document-start script of the previous page
+      stays registered on the next page. Make sure that this is still true
+      on `develop` before you fix it.
+
+   Step 1 is the measurement setup, because the replay snapshot has no
+   userscripts, so no B1 cost shows:
+
+   - Write test userscripts in `tools/replay/userscripts/`: one at
+     `document-start` that calls `PDA_httpGet` (for 1.8), and a few at
+     `document-end` that match the attack flow pages (for 1.7). Each one
+     logs its start time and its first answer with `console.log`, so
+     that they reach `perf.txt`. Read `tools/perf/pda-perf-probe.user.js`
+     for the log format first.
+   - PDA adds a script from a URL (`UserScriptModel.fromURL`, used in
+     `lib/widgets/settings/userscripts_add_dialog.dart`). Let the replay
+     proxy serve the test scripts at fixed URLs, for example under
+     `https://pda-replay.invalid/`, like the blank page.
+   - The `PDA_httpGet` target must be in a recording, or the proxy must
+     answer it with a fixed reply.
+   - Add the scripts in `setup.yaml` and build `replay-ready` again.
+     Keep a copy of the old snapshot, because the A1 numbers come from
+     it. Compare runs only within one snapshot.
+   - Then measure `perf/analysis` with the new snapshot as the B1
+     baseline: `bridge.firstAt` against `probeStart` and `nav.load`, and
+     `dart.cb.onLoadStop.wallMs`.
+
+   Then one branch for each fix, as in item 1. The user writes and posts
+   each PR.
+
+   Also open, not B1:
+
+   - The `TickerMode` change (local branch `perf/drawer-tickermode`,
+     commit `8f24d8e4`, APK `8f24d8e4.apk`). The sixth session recorded
+     that the maintainer makes it, but it is not on `develop` on
+     2026-11-02. Ask the user whether to make it a PR. Its side effect on
+     the chat poll is in "The 60 frames each second". Keep the branch.
+   - The A1 items from 1.4 (the iframe fast path, the `http` race,
+     document-start scripts once per navigation), and `getHtml` 3 on the
+     profile page.
+   - Mark the A1 items that upstream did in `report.md`, and republish
+     the report artifact.
+   - The new `develop` makes requests that the recordings do not have
+     (`tchat/settings`, `tchat/rooms/tokens`, `user/organizedcrime`). A
+     new capture needs the user's login (`live-ready`), so ask the user
+     first.
 
 1. The A1 and B1 quick fixes from the report, one branch each. For each fix,
    build the APK before and after the fix, and run both in one session with
@@ -489,20 +536,11 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 
    Done in the fifth session: the rebase on `develop`, the comparison of
    the new `develop` with `50a4a3d9.apk`, and the deletion of the old fix
-   branches. Still to do from this list, after the clean A1 run
-   (item 0):
+   branches. The open items of this list are in item 0.
 
-   - Mark the A1 items that upstream did in `report.md`, and republish the
-     report artifact.
-   - The user asks the maintainer which report items the maintainer will
-     do, so that the work does not overlap again. Items that are still
-     open: from 1.4, the iframe fast path, the `http` race, and
-     document-start scripts once per navigation. `getHtml` on the profile
-     page is 3, one over the A1 target.
 2. Done: `summarize.py --compare` (see "Comparing two builds" in
    `measurement.md`).
-3. A test userscript that calls `PDA_httpGet` at document start, in the
-   snapshot, so that finding 1.8 gets a number.
+3. Test userscripts in the snapshot: see item 0, B1 step 1.
 4. 16 runs for the profile and faction pages, where the `nav.load` spread is
    over 10 %.
 5. Find why one crimes run went back to the blank page (see the lessons).
