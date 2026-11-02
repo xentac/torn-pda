@@ -186,6 +186,34 @@ def test_anonymize_handles_many_ids_quickly(files):
     assert "XID=3000007" not in page and ">Member7<" not in page
 
 
+def test_anonymize_multipart_forms(files):
+    """Torn's crimes page posts multipart forms with the player ID and a separate 32-character key."""
+    web_key = "Q" * 8 + "w3bK3yW3bK3y0123456789ab"
+    boundary = "----WebKitFormBoundaryAbC"
+    body = "".join(
+        f'--{boundary}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'
+        for k, v in [("userID", OWN_ID), ("typeID", "3"), ("apiKey", web_key)]
+    ) + f"--{boundary}--\r\n"
+    multi = recording()
+    multi.append(
+        flow(
+            "POST",
+            "https://www.torn.com/crimesHubApi.php",
+            req_body=body.encode(),
+            req_headers={"content-type": f"multipart/form-data; boundary={boundary}"},
+            body=b'{"success": true}',
+            headers={"content-type": "application/json"},
+        )
+    )
+    write(files["raw"], multi)
+    assert run_anonymize(files) == 0
+    req = read(files["anon"])[-1].request
+    form = {k.decode(): v.decode() for k, v in req.multipart_form.items()}
+    assert form["typeID"] == "3"
+    assert form["userID"] != OWN_ID and len(form["userID"]) == len(OWN_ID)
+    assert form["apiKey"] != web_key and len(form["apiKey"]) == len(web_key)
+
+
 def test_anonymize_refuses_to_write_a_leak(files):
     leak = recording()
     leak.append(
