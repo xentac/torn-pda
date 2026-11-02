@@ -16,7 +16,9 @@
 // Lag and frame numbers are process-wide. They are written only to the record of the tab
 // that started the most recent navigation, so do not add them up across tabs.
 //
-// A summary line is logged with the prefix [PDA-PERF-DART] at onLoadStop + 10 s.
+// A summary record is logged with the prefix [PDA-PERF-DART] at onLoadStop + 10 s. Records of the
+// page probe (tools/perf/pda-perf-probe.user.js, injected first in these builds) come from the
+// console and are logged with the prefix [PDA-PERF-PROBE]. See [PerfTrace.emit] for the format.
 //
 // Platform-channel traffic is not counted here. Build with the flag in profile mode and
 // Flutter's own `debugProfilePlatformChannels` is turned on as well (see [PerfTrace.install]),
@@ -35,6 +37,7 @@ class PerfTrace {
 
   static final Map<String, _NavTrace> _byTab = {};
   static final Map<String, _NavTrace> _pending = {};
+  static final Map<String, _NavTrace> _late = {};
   static final _FrameStats _frames = _FrameStats();
   static final _LagStats _lag = _LagStats();
   static String? _lastTab;
@@ -47,6 +50,30 @@ class PerfTrace {
     if (!kReleaseMode) debugProfilePlatformChannels = true;
     SchedulerBinding.instance.addTimingsCallback(_frames.add);
     _lag.start();
+  }
+
+  static int _emitted = 0;
+  // Characters per line. Up to 3 bytes each in UTF-8, under the limit of about 1024 bytes.
+  static const int _chunk = 300;
+
+  /// Writes a record to the developer log (DevTools) and to logcat. `developer.log` does not reach
+  /// logcat, and Flutter cuts logcat lines at about 1 KB, so the logcat copy is split into lines of
+  /// the form `[PREFIX] <id> <part>/<parts> <text>`. Join the parts of one id in order.
+  static void emit(String prefix, String text) {
+    if (!enabled) return;
+    developer.log('[$prefix] $text', name: 'PERF');
+    final id = ++_emitted;
+    final chunks = <String>[];
+    for (var start = 0; start < text.length;) {
+      var end = start + _chunk < text.length ? start + _chunk : text.length;
+      // Do not split a surrogate pair
+      if (end < text.length && (text.codeUnitAt(end - 1) & 0xFC00) == 0xD800) end--;
+      chunks.add(text.substring(start, end));
+      start = end;
+    }
+    for (var i = 0; i < chunks.length; i++) {
+      debugPrintSynchronously('[$prefix] $id ${i + 1}/${chunks.length} ${chunks[i]}');
+    }
   }
 
   /// A new document began loading in [tab]. Flushes the previous record if not yet reported.
@@ -123,9 +150,10 @@ class PerfTrace {
       t = _byTab[tab];
       if (t == null) return;
       if (t.reported) {
-        // Arrived after the 10 s report. Kept in the log so it is not silently lost.
-        developer.log('[PDA-PERF-DART-LATE] $tab $name ${(totalUs / 1000).toStringAsFixed(1)}ms', name: 'PERF');
-        return;
+        // Arrived after the 10 s report (polling pages do this all the time). Counted, and written
+        // as `latePrev` with the next record of the tab. One log line per callback would add main
+        // thread work to the measurement.
+        t = _late.putIfAbsent(tab, () => _NavTrace('(late)', const [], const []));
       }
     }
     final s = t.cbs.putIfAbsent(name, () => _CbStat());
@@ -137,26 +165,20 @@ class PerfTrace {
 
   static void _report(String tab, _NavTrace t, {required String reason}) {
     t.reported = true;
+    final late = _late.remove(tab);
     final processWide = identical(_byTab[_lastTab], t);
     final m = <String, dynamic>{
       'tab': tab,
       'url': t.url,
       'reason': reason,
       'stopMs': t.stopAt,
-      'cb': {
-        for (final e in t.cbs.entries)
-          e.key: {
-            'n': e.value.n,
-            'syncMs': (e.value.syncUs / 1000).toStringAsFixed(1),
-            'wallMs': (e.value.totalUs / 1000).toStringAsFixed(1),
-            'maxWallMs': (e.value.maxUs / 1000).toStringAsFixed(1),
-          },
-      },
+      'cb': _cbMap(t),
       'counts': t.counts,
+      if (late != null) 'latePrev': _cbMap(late),
       if (processWide) 'frames': _frames.since(t.frames0),
       if (processWide) 'lag': _lag.since(t.lag0),
     };
-    developer.log('[PDA-PERF-DART] ${jsonEncode(m)}', name: 'PERF');
+    emit('PDA-PERF-DART', jsonEncode(m));
   }
 }
 
@@ -166,6 +188,16 @@ class _CbStat {
   int totalUs = 0;
   int maxUs = 0;
 }
+
+Map<String, dynamic> _cbMap(_NavTrace t) => {
+      for (final e in t.cbs.entries)
+        e.key: {
+          'n': e.value.n,
+          'syncMs': (e.value.syncUs / 1000).toStringAsFixed(1),
+          'wallMs': (e.value.totalUs / 1000).toStringAsFixed(1),
+          'maxWallMs': (e.value.maxUs / 1000).toStringAsFixed(1),
+        },
+    };
 
 class _NavTrace {
   _NavTrace(this.url, this.frames0, this.lag0);

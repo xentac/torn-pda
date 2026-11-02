@@ -20,6 +20,8 @@ import 'package:torn_pda/main.dart';
 import 'package:torn_pda/models/userscript_model.dart';
 import 'package:torn_pda/torn-pda-native/stats/app_settings_daily.dart';
 import 'package:torn_pda/utils/js_snippets/js_handlers.dart';
+import 'package:torn_pda/utils/perf/perf_trace.dart';
+import 'package:torn_pda/utils/perf/probe_source.g.dart';
 import 'package:torn_pda/utils/script_storage.dart';
 import 'package:torn_pda/utils/shared_prefs.dart';
 import 'package:torn_pda/utils/webview_dialog_helper.dart';
@@ -309,7 +311,16 @@ class UserScriptsProvider extends ChangeNotifier {
     required String tabUid,
     bool activeTabFocusEnabled = false,
   }) {
-    final scriptList = <UserScript>[];
+    final scriptList = <UserScript>[
+      // PDA_PERF builds only: the page probe runs first, so that it also measures PDA's own scripts
+      if (PerfTrace.enabled)
+        UserScript(
+          groupName: "__TornPDA_PerfProbe__",
+          injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+          source: perfProbeSource,
+          forMainFrameOnly: true,
+        ),
+    ];
     if (_userScriptsEnabled) {
       scriptList.add(
         UserScript(
