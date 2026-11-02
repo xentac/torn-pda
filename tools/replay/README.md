@@ -165,6 +165,11 @@ Answers come back at once by default. For speed tests, `MITM_ARGS="--set
 pda_replay_latency=recorded"` keeps the recorded server time per answer, and
 `--set pda_replay_latency=150` gives a fixed 150 ms.
 
+When you write a flow, `MITM_ARGS="--set pda_replay_log_hits=true"` also puts
+the exact matches in the miss log, with their form fields. Compare that list
+with the requests in the recording to see which of your steps the flow
+repeats.
+
 ### What the replay does not do
 
 - It does not change game state. A purchase or a trade gets its recorded
@@ -173,10 +178,17 @@ pda_replay_latency=recorded"` keeps the recorded server time per answer, and
 - A request with no recording gets a 502 with the header
   `x-pda-replay: miss`, and goes to the miss log. Compare the miss logs of
   two builds as part of the behavioral diff.
-- The replay never goes back in recorded time on one URL. A poll that comes
-  at another moment than in the recording gets the newest answer
-  that the replay gave for the same URL, for example the attack state after
-  "Start fight". The miss log marks these answers as `state`.
+- The replay never goes back in recorded time on one URL. A poll can come at
+  another moment than in the recording. It then gets the newest answer that
+  the replay gave for the same URL, for example the attack state after "Start
+  fight". The miss log marks these answers as `state`.
+- A request that repeats, such as a list that the page polls, gets its next
+  recorded answer only after the replay gave every answer that came between the
+  two in the recording, on the same page (host, path and `sid`). Until then it
+  gets the previous answer again (`hold`). For example, the arson list
+  changes only after the flow does the "Collect" from the capture.
+- Some requests carry a random value, for example the `scene` of the graffiti
+  banner. They are misses.
 - Google and Firebase stay live, so the remote feature flags come from the
   network. For a comparison of two builds, run both on the same day, or
   set the flag values in the test.
