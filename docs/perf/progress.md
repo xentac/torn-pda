@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-02 (fifth session).
+Last update: 2026-11-02 (end of the fifth session).
 
 ## State
 
@@ -34,6 +34,14 @@ Last update: 2026-11-02 (fifth session).
   rewritten to keep a security detail out of the public history. The old
   history is in the local branch `perf/analysis-backup`. Never push that
   branch.
+- Open question for the user: a lesson below (on `MyHttpOverrides` since
+  `610af44f`) describes the strict certificate check, and it is on the
+  fork. The user can choose to reword it, so that it says nothing about
+  the old behavior.
+- APKs in `~/pda-recordings/apks/`: `50a4a3d9` (old base, before
+  `610af44f`), `d4a7dbad` (`develop` at `610af44f` with the hooks, without
+  #501). The current `perf/analysis` (`develop` at `34594b4c`) has no APK
+  yet.
 - The report is published as a shared artifact:
   https://claude.ai/artifact/GCojySixXsQJxfYYTqNxfK (version 13). The source is
   `report.md`.
@@ -371,6 +379,30 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 
 ## Next steps
 
+0. Find what draws about 60 frames each second in the new `develop`
+   (see "A1 after the maintainer's commit 610af44f"). This is the next
+   task. A plan:
+
+   - Make sure first that the cause is in `610af44f` or later, and not in
+     the fork: the old build `50a4a3d9` and the new build `d4a7dbad` differ
+     only by the upstream commit and the rebase.
+   - Install `d4a7dbad.apk` (or a new build of `perf/analysis`), start
+     from `replay-ready` with the replay proxy, open a page, and wait until
+     it is idle. Take a Flutter timeline in profile mode (DevTools,
+     `flutter attach`), or a Perfetto trace. Look at what schedules each
+     frame: an `AnimationController` or `Ticker` that never stops, a
+     repeating `setState`, or a `ValueListenable` that changes on each
+     frame.
+   - Candidates in `610af44f`: new animations in the chat (for example
+     the arrival fade or the typing indicator), the browser bar, the
+     split layout, the chain widget, and the progress bar code (it now
+     skips the animation when the tab is not on screen).
+   - Also check whether the frames go on when the app shows no browser,
+     and whether a hidden tab draws them.
+   - Done when the widget that requests the frames is known. Then compare
+     the frame count with a build that stops it. If it is an upstream bug,
+     prepare a small PR, or a short report for the user to send.
+
 1. The A1 and B1 quick fixes from the report, one branch each. For each fix,
    build the APK before and after the fix, and run both in one session with
    `PDA_APKS` (see the replay README). The builds then alternate, and the
@@ -396,14 +428,14 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    tests of the tools run in the replay shell:
    `python3 -m pytest -o asyncio_mode=auto tools/perf tools/replay`.
 
-   Fix 1.1 of A1 (the travel check) is done, see "Fix 1.1: the travel
-   check" below. The next fix is 1.3 (the progress bar), on a new branch
-   from `perf/analysis`, for example `perf/a1-progress-bar`. Its success
-   metric is `dart.counts.setState` per navigation (25 to 80 now, target
-   under 10 for all of A1). Also compare `counts.WebViewProvider.notify`.
-   Then make the upstream branch from `origin/develop` as for 1.1 (see
-   "Upstream pull requests"). The user writes and posts each PR. Give the
-   user a draft of the PR text in the scratchpad.
+   The maintainer's commit `610af44f` did most of A1, and #501 is merged
+   (see "State" and "A1 after the maintainer's commit 610af44f"). There is
+   no measurement branch now. For a new fix, make the branch from
+   `perf/analysis`, and the upstream branch from `origin/develop` with only
+   the fix (see "Upstream pull requests"). The user writes and posts each
+   PR. Give the user a draft of the PR text in the scratchpad. Keep code
+   comments in upstream branches to a few words: the maintainer shortened
+   ours after the merge.
 
    Finding 1.2 (the app reads the page in about 75 places) has no quick
    fix of its own. Its fix is track P, the page data layer.
@@ -431,15 +463,18 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
      gives the numbers only.
    - CI: fixed upstream, see "Upstream pull requests".
 
-   Next, in this order: rebase `perf/analysis` on `origin/develop`
-   (`610af44f` or later), and delete `perf/a1-travel-check`. Then build the
-   rebased branch and compare it with `50a4a3d9.apk` on the attack flow,
-   alternated in one session, to measure the A1 targets after the
-   maintainer's commit. This is also the new baseline. Then mark the done
-   A1 items in `report.md`. Before the next fix, the user asks the
-   maintainer which items the maintainer will do, so that the work does
-   not overlap again. Items that are still open: from 1.4, the iframe fast
-   path, the `http` race, and document-start scripts once per navigation.
+   Done in the fifth session: the rebase on `develop`, the comparison of
+   the new `develop` with `50a4a3d9.apk`, and the deletion of the old fix
+   branches. Still to do from this list, after the frame investigation
+   (item 0):
+
+   - Mark the A1 items that upstream did in `report.md`, and republish the
+     report artifact.
+   - The user asks the maintainer which report items the maintainer will
+     do, so that the work does not overlap again. Items that are still
+     open: from 1.4, the iframe fast path, the `http` race, and
+     document-start scripts once per navigation. `getHtml` on the profile
+     page is 3, one over the A1 target.
 2. Done: `summarize.py --compare` (see "Comparing two builds" in
    `measurement.md`).
 3. A test userscript that calls `PDA_httpGet` at document start, in the
@@ -488,8 +523,8 @@ comparable between the two builds.
 
 ### Fix 1.1: the travel check (done)
 
-Done on 2026-11-02, on the branch `perf/a1-travel-check` (on the fork
-since 2026-11-02). The comparison below measured commit `ec113644`. The last commit
+Done on 2026-11-02, on the branch `perf/a1-travel-check` (deleted after
+upstream did its own fix in `610af44f`). The comparison below measured commit `ec113644`. The last commit
 `cef61134` adds only a guard: a check that ends after the next page load
 does not change the status. One attack run on `cef61134.apk` passed, with
 the same `getHtml` counts (4 on the attack page in that run). `assessTravel` no longer copies and parses the page
@@ -538,6 +573,11 @@ the function body of `waitForSelectorJS` in the WebView devtools and add
 a `div.travel-home` element.
 
 ### Lessons from the baseline work
+
+- In zsh, an unquoted variable that holds several paths stays one word.
+  Give `summarize.py` the run folders as a glob or an array, for example
+  `old=(~/pda-recordings/runs/*-attack-50a4a3d9)`, never through `$(ls)`
+  in a variable. Otherwise it skips the folders and says "no perf.txt".
 
 - Rebase lesson: in a conflict, never take a whole file with
   `git checkout --ours`. It also drops the hunks of the commit that did not
