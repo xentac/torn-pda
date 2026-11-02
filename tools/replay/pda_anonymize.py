@@ -45,7 +45,7 @@ import urllib.parse
 
 from mitmproxy import http, io
 
-TEXT_TYPES = ("text/", "json", "javascript", "xml", "x-www-form-urlencoded")
+TEXT_TYPES = ("text/", "json", "javascript", "xml", "x-www-form-urlencoded", "multipart/form-data")
 # Cookie values shorter than this are flags like "1" or "en", not secrets.
 MIN_COOKIE_LEN = 8
 # Other players' IDs are replaced outside their usual places only when they are
@@ -65,10 +65,16 @@ ID_CONTEXTS = [
     r"/faction/",
     r'"(?:player_id|user_id|userID|userId|faction_id|factionID|factionId|attacker_id|defender_id|target_id)"\s*:\s*"?',
     r"data-(?:id|user|player|uid)=\"",
+    r'name="(?:userID|user2ID|XID|targetID|playerID)"\r\n\r\n',
 ]
 FACTION_CONTEXTS = [r"factions\.php\?step=profile&(?:amp;)?ID=", r"/faction/", r'"(?:faction_id|factionID|factionId)"\s*:\s*"?']
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 IPV4_RE = re.compile(r"(?<![\d.])(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?![\d.])")
+# Form and query fields whose values are credentials, whatever their format.
+# Torn's crimes page, for example, posts a 32-character "apiKey" that is not the API key.
+SECRET_FIELD_RE = re.compile(r"(?i)^(api_?key|key|token|access_?token|secret|password|passwd|auth)$")
+SECRET_JSON_RE = re.compile(r'"(?i:api_?key|access_?token|secret|password)"\s*:\s*"([^"\\]{8,200})"')
+ID_FIELDS = {"userID", "user2ID", "XID", "targetID", "playerID", "user_id", "target_id"}
 API_KEY_RE = re.compile(r"(?:[?&]key=|ApiKey\s+|\"key\"\s*:\s*\")([A-Za-z0-9]{16})(?![A-Za-z0-9])")
 NAME_BEFORE_ID_RE = re.compile(r"([A-Za-z0-9_-]{1,20}) \[(\d{1,8})\]")
 NAME_IN_PROFILE_LINK_RE = re.compile(r"(profiles\.php\?XID=(\d{1,8})[^>]*>)([A-Za-z0-9_-]{1,20})(<)")
@@ -245,8 +251,21 @@ class Anonymizer:
                 first = v.split(";", 1)[0]
                 if "=" in first:
                     self._cookie(first.split("=", 1)[1].strip())
+        r = flow.request
+        fields = list(r.query.items(multi=True))
+        if r.urlencoded_form:
+            fields += list(r.urlencoded_form.items(multi=True))
+        if r.multipart_form:
+            fields += [(k.decode(errors="replace"), v.decode(errors="replace")) for k, v in r.multipart_form.items(multi=True)]
+        for name, value in fields:
+            if SECRET_FIELD_RE.match(name) and len(value) >= MIN_COOKIE_LEN:
+                self.m.token("keys", value)
+            elif name in ID_FIELDS and value.isdigit():
+                self.m.number("ids", value)
         for text in _all_text(flow):
             for k in API_KEY_RE.findall(text):
+                self.m.token("keys", k)
+            for k in SECRET_JSON_RE.findall(text):
                 self.m.token("keys", k)
             for e in EMAIL_RE.findall(text):
                 if not e.lower().endswith(("@example.com", ".png", ".jpg", ".gif", ".svg", ".webp")):
