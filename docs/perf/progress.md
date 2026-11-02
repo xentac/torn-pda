@@ -24,8 +24,8 @@ Last update: 2026-11-02 (end of the eighth session).
   eighth session. The rebase had no conflicts. The new `develop` has only
   `c27e9e54` (the changelog pauses its animation under the browser) and a
   TornTools catalog update. The branch before this rebase is the local
-  `perf/analysis-pre-a2377dcc`. The fork still has the old history, so the
-  next push to the fork is a force push. Before that, it was based on
+  `perf/analysis-pre-a2377dcc`. The user approved a force push, and the
+  fork has the rebased branch since 2026-11-02 (eighth session). Before that, it was based on
   `34594b4c` (after the merge of #501). The first rebase, on `610af44f`, was on 2026-11-02
   (fifth session). The branch before the rebase is the
   local `perf/analysis-pre-610af44f`. The rebased profile build is
@@ -59,7 +59,7 @@ Last update: 2026-11-02 (end of the eighth session).
   it. `replay-ready-b1` (eighth session) has the test userscripts and
   PDA's five example scripts. Use it for all B1 work, with
   `PDA_SNAPSHOT=replay-ready-b1`. Compare runs only within one snapshot.
-- The commits of the eighth session are not on the fork. Ask before you
+- All commits of the eighth session are on the fork. Ask before each
   push.
 - The report is published as a shared artifact:
   https://claude.ai/artifact/GCojySixXsQJxfYYTqNxfK (version 13). The source is
@@ -446,9 +446,29 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
       on `develop` before you fix it.
 
    Step 1, the measurement setup, is done (eighth session). See "The B1
-   baseline". The next task is fix 1.8 against the B1 baseline: a
-   measurement branch from `perf/analysis` and an upstream branch from
-   `origin/develop`. Its success metrics are `probe.us.start.waitMs` and
+   baseline".
+
+   Start of the ninth session: fix 1.8. Read "The B1 baseline" first.
+   Then do these steps:
+
+   1. Look at `origin/develop` for the same change.
+   2. Read how `__PDA_platformReadyPromise` is made
+      (`handler_flutterPlatformReady` in `js_handlers.dart`,
+      `_pdaApiBaseJS` in `remote_snippets.dart`) and when
+      flutter_inappwebview fires `flutterInAppWebViewPlatformReady` on
+      Android and iOS. Find out whether the handlers can be called
+      before that event, and propose the fix to the user before you
+      write it.
+   3. Commit the fix on a branch from `perf/analysis`, build its APK,
+      and run 8 runs of `53fad5c1.apk` and the new APK, alternated, on
+      `replay-ready-b1`.
+   4. Compare them with `summarize.py --compare` and
+      `--metric probe.us.start.waitMs --metric probe.us.start.rttMs`.
+   5. Make the upstream branch from `origin/develop` (only the fix,
+      short comments), and write a PR draft with the numbers and an iOS
+      and beta-tester test plan in the scratchpad.
+
+   The success metrics of fix 1.8 are `probe.us.start.waitMs` and
    `probe.us.start.rttMs` (give them to `summarize.py --metric`). For
    fix 1.7, part 1, use `probe.us.endAll.afterLoad` and
    `probe.us.endGapMs`. Write the iOS and beta-tester test plan into
