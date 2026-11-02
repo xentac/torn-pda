@@ -1,0 +1,13 @@
+# Opens the faction page and waits until Torn's content is there.
+# Recording: a capture of your faction page (factions.php?step=your).
+appId: com.manuito.tornpda
+---
+- runFlow: dismiss-tips.yaml
+- openLink: "https://www.torn.com/factions.php?step=your"
+- extendedWaitUntil:
+    visible: "Factions | TORN"
+    timeout: 60000
+- extendedWaitUntil:
+    visible: "Example Faction"
+    timeout: 30000
+- takeScreenshot: faction

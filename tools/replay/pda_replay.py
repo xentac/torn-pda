@@ -33,6 +33,11 @@ HEADER = "x-pda-replay"
 DEFAULT_IGNORE = "rfcv,_,key,timestamp,t"
 
 
+def _site(host: str) -> str:
+    """The last two labels of a host name, for example torn.com for www.torn.com."""
+    return ".".join(host.split(".")[-2:])
+
+
 def _utc(ts: float) -> str:
     return datetime.datetime.fromtimestamp(ts, datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -44,6 +49,8 @@ class PdaReplay:
         self.cursor: dict[tuple, int] = {}
         self.guard: re.Pattern | None = None
         self.first_ts: float | None = None
+        # Cookies that the recorded browser sent, per site, such as "torn.com".
+        self.cookies: dict[str, dict[str, str]] = {}
         self.stats = {"hit": 0, "loose": 0, "miss": 0, "blocked": 0}
 
     def load(self, loader):
@@ -55,6 +62,9 @@ class PdaReplay:
         )
         loader.add_option(
             "pda_replay_latency", str, "0", "Delay per answer: 0, a number of milliseconds, or 'recorded'."
+        )
+        loader.add_option(
+            "pda_replay_cookies", bool, True, "Give the client the cookies that the recorded browser sent."
         )
         loader.add_option(
             "pda_replay_cert_days", int, 400, "Days before now that generated certificates become valid."
@@ -104,6 +114,7 @@ class PdaReplay:
         self.urls.clear()
         self.exact.clear()
         self.cursor.clear()
+        self.cookies.clear()
         self.first_ts = None
         n = 0
         for path in [p.strip() for p in paths.split(",") if p.strip()]:
@@ -114,6 +125,9 @@ class PdaReplay:
                     # A replay starts with an empty browser cache, so "not modified" is no answer.
                     if fl.response.status_code == 304:
                         continue
+                    jar = self.cookies.setdefault(_site(fl.request.pretty_host), {})
+                    for name, value in fl.request.cookies.items(multi=True):
+                        jar[name] = value
                     uk = self._url_key(fl.request)
                     self.urls.setdefault(uk, []).append(fl)
                     self.exact.setdefault((uk, self._body_key(fl.request)), []).append(fl)
@@ -167,9 +181,24 @@ class PdaReplay:
             await asyncio.sleep(delay)
         resp = rec.response.copy()
         resp.headers[HEADER] = kind
+        if ctx.options.pda_replay_cookies:
+            self._add_missing_cookies(r, resp)
         resp.timestamp_start = time.time()
         resp.timestamp_end = resp.timestamp_start
         flow.response = resp
+
+    def _add_missing_cookies(self, r: http.Request, resp: http.Response):
+        """Sets the recorded cookies that the client does not have yet.
+
+        Torn's scripts read the login cookies (uid, rfc_v) to build their requests.
+        Without them the requests carry userID=0 and match nothing in the recording.
+        The values are the anonymized ones, so they match the anonymized requests.
+        """
+        site = _site(r.pretty_host)
+        have = set(r.cookies.keys())
+        for name, value in self.cookies.get(site, {}).items():
+            if name not in have:
+                resp.headers.add("set-cookie", f"{name}={value}; Domain=.{site}; Path=/; Secure")
 
     def _delay(self, rec: http.HTTPFlow) -> float:
         opt = ctx.options.pda_replay_latency
