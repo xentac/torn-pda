@@ -182,10 +182,10 @@ repeats.
   another moment than in the recording. It then gets the newest answer that
   the replay gave for the same URL, for example the attack state after "Start
   fight". The miss log marks these answers as `state`.
-- A request that repeats, such as a list that the page polls, gets its next
-  recorded answer only after the replay gave every answer that came between the
-  two in the recording, on the same page (host, path and `sid`). Until then it
-  gets the previous answer again (`hold`). For example, the arson list
+- A request that repeats, such as a list that the page polls, can wait for
+  its next recorded answer. In the recording, other answers came between the
+  two, on the same page (host, path and `sid`). The replay must give all of
+  them first. Until then, the request gets the previous answer again (`hold`). For example, the arson list
   changes only after the flow does the "Collect" from the capture.
 - Some requests carry a random value, for example the `scene` of the graffiti
   banner. They are misses.
@@ -215,9 +215,9 @@ with `MAESTRO_CLI_NO_ANALYTICS=1`.
 
    It clears the app, makes PDA the app for torn.com links and enters the
    key. Then it opens the faction page and a profile once, and closes the
-   first-run tips. Last, it opens `tornpda://pda-replay.invalid/blank`, a
-   blank page that the replay proxy answers itself, so that no Torn page is
-   open when a test starts. Then it saves the emulator snapshot `replay-ready`. PDA's own tips are invisible to Maestro,
+   first-run tips. Last, it opens `tornpda://pda-replay.invalid/blank`. The
+   replay proxy answers this blank page itself. Thus no Torn page is open when
+   a test starts. Then it saves the emulator snapshot `replay-ready`. PDA's own tips are invisible to Maestro,
    so the script closes them with `adb` and checks that none is left.
 
 2. Run a test:
@@ -228,9 +228,23 @@ with `MAESTRO_CLI_NO_ANALYTICS=1`.
 
    It loads the snapshot, sets the clock to the first request of the first
    recording, starts the replay proxy, and runs the flow. The results go to
-   `$PDA_REC_DIR/runs/<time>-<flow>/`: the miss log, the proxy log, the
-   Maestro output with screenshots, logcat, and the `PDA-PERF` lines from a
-   `PDA_PERF` build. Set `PDA_APK` to install a build first. App data stays.
+   `$PDA_REC_DIR/runs/<time>-<flow>/`. The folder has the miss log, the proxy
+   log, the Maestro output with screenshots and logcat. It also has the
+   `PDA-PERF` lines from a `PDA_PERF` build (`perf.txt`), the run settings
+   (`env.json`) and the test result (`status`). Set `PDA_APK` to install a build first. App data stays.
+
+3. Run a flow several times for a speed baseline:
+
+   ```sh
+   PDA_EMULATOR="emulator" tools/replay/run-baseline.sh tools/replay/flows/faction.yaml 8 "$PDA_REC_DIR/anon/faction.mitm" "$PDA_REC_DIR/anon/onboarding.mitm"
+   ```
+
+   Stop the emulator first. For each run, the script boots a new emulator
+   from the snapshot, runs `run-test.sh`, and stops the emulator. The network
+   timing defaults to the recorded latency. On NixOS, set `PDA_EMULATOR` to
+   the emulator command from the dev shell, and set `LD_LIBRARY_PATH` for the
+   host GL drivers. Then summarize the runs with `tools/perf/summarize.py`
+   (see `docs/perf/measurement.md`).
 
 Known differences from the capture: Torn's pages keep some view state in the
 browser's local storage, and the snapshot does not have it. An example is
