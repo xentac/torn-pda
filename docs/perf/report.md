@@ -34,7 +34,7 @@ Read this section before you use any number in this report.
 
 ### First measurements
 
-The first baseline used a profile build of `perf/analysis` at `88e8b12a` with `PDA_PERF=true`, on an Android emulator. The record and replay tools (section "Regression testing") supplied the pages, with the recorded server latency. Each flow ran 8 times, and all 24 runs passed. The table gives medians. `getHtml` is the number of full-page HTML copies that Dart requested. `setState` is the number of rebuilds of the whole browser widget.
+The first baseline used a profile build of `perf/analysis` at `50a4a3d9` with `PDA_PERF=true`, on an Android emulator. The record and replay tools (section "Regression testing") supplied the pages, with the recorded server latency. Each flow ran 8 times, and all 24 runs passed. The table gives medians. `getHtml` is the number of full-page HTML copies that Dart requested. `setState` is the number of rebuilds of the whole browser widget.
 
 | Page | Page load (ms) | `getHtml` | `setState` |
 |---|---|---|---|
