@@ -400,10 +400,27 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    `onLoadStart` and `onLoadStop` and injects some scripts twice. No track
    names this yet. Ask the maintainer about both.
 
-   The user plans to send the maintainer a first message: the report link,
-   that more small fixes will follow, and the question of one PR per fix or
-   one PR for all of A1. The answer can change how the next branches are
-   cut. Use `ec113644.apk` as the old build only if the
+   The user plans to send the maintainer a first message. The user's own
+   answers, before that message:
+
+   - PR shape: one small PR per fix, each one testable alone. Keep doing
+     this.
+   - Travel pages: the element appears only on a small number of travel
+     pages, but nobody has a list yet, and Torn can change the pages. So
+     the travel check stays on every page for now. Later: collect the
+     travel pages (for example in an abroad capture), and then limit the
+     check to them.
+
+   Open questions for the maintainer (not asked yet, as of 2026-11-02):
+
+   - Does anything need the `onLoadStart` copy, or can it be removed or
+     limited to `loader.php`?
+   - Is the `_assessGeneral` call in `onLoadStart` on purpose, or can it run
+     only once per page load?
+   - Does the maintainer want the `PDA_PERF` hooks or the replay tools in
+     the repository, or only the numbers in each PR?
+   - Does the maintainer want a PR that adds `recheck` to
+     `lib/config/chat_engine.dart.example`, so that CI Analyze passes? Use `ec113644.apk` as the old build only if the
    new branch starts from `perf/a1-travel-check`. Otherwise use
    `50a4a3d9.apk`.
 2. Done: `summarize.py --compare` (see "Comparing two builds" in
