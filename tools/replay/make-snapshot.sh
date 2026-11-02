@@ -3,6 +3,7 @@
 #   PDA_FAKE_KEY=... tools/replay/make-snapshot.sh ONBOARDING.mitm FACTION.mitm PROFILE.mitm
 # ONBOARDING answers the API key check. setup.yaml opens the faction page once and
 # open-profile.yaml opens a profile once, to get the first-run tips out of the way.
+# add-userscripts.yaml adds the test userscripts (tools/replay/userscripts/).
 # Then open-blank.yaml leaves the browser on an empty page, so that no Torn page
 # runs when a test starts.
 # PROFILE must have the profile in open-profile.yaml (the attack recording has it).
@@ -73,6 +74,7 @@ if tip_overlay || screen_has "Swipe right to reveal the sidebar"; then
   echo "A tip is still open. The snapshot was not saved." >&2
   exit 1
 fi
+maestro test "$here/flows/add-userscripts.yaml"
 maestro test "$here/flows/open-blank.yaml"
 adb emu avd snapshot save "$PDA_SNAPSHOT"
 echo "Saved snapshot $PDA_SNAPSHOT."
