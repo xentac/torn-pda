@@ -146,6 +146,10 @@ def main():
         if not (run / "perf.txt").exists():
             print(f"{run}: no perf.txt (a crashed run?), skipped", file=sys.stderr)
             continue
+        status = run / "status"
+        if status.exists() and status.read_text().strip() != "passed":
+            print(f"{run}: the test failed, skipped", file=sys.stderr)
+            continue
         per_run[run.name] = run_metrics(run)
         env_file = run / "env.json"
         if env_file.exists():
