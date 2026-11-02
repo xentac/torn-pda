@@ -231,7 +231,8 @@ with `MAESTRO_CLI_NO_ANALYTICS=1`.
    `$PDA_REC_DIR/runs/<time>-<flow>/`. The folder has the miss log, the proxy
    log, the Maestro output with screenshots and logcat. It also has the
    `PDA-PERF` lines from a `PDA_PERF` build (`perf.txt`), the run settings
-   (`env.json`) and the test result (`status`). Set `PDA_APK` to install a build first. App data stays.
+   (`env.json`) and the test result (`status`). `env.json` names the
+   checkout (`pda_commit`), so build the installed APK from that checkout. Set `PDA_APK` to install a build first. App data stays.
 
 3. Run a flow several times for a speed baseline:
 
