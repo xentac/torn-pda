@@ -167,6 +167,25 @@ def test_anonymize_keeps_structure_and_is_stable(files):
     assert json.loads(files["map"].read_text())["ids"][OWN_ID] == fake_id
 
 
+def test_anonymize_handles_many_ids_quickly(files):
+    """A faction page has hundreds of IDs and many short numbers after ID=. This once never finished."""
+    import time
+
+    rows = "".join(
+        f'<a href="/profiles.php?XID={3000000 + i}">Member{i}</a> <a href="page.php?ID={i}">x</a>' for i in range(2000)
+    )
+    many = recording()
+    many.append(flow("GET", "https://www.torn.com/factions.php", body=rows.encode(), headers={"content-type": "text/html"}))
+    write(files["raw"], many)
+    start = time.monotonic()
+    assert run_anonymize(files) == 0
+    assert time.monotonic() - start < 20
+    page = read(files["anon"])[-1].response.text
+    # Short numbers are not player IDs and stay. Player IDs and names change.
+    assert 'page.php?ID=7"' in page and 'page.php?ID=999"' in page
+    assert "XID=3000007" not in page and ">Member7<" not in page
+
+
 def test_anonymize_refuses_to_write_a_leak(files):
     leak = recording()
     leak.append(
