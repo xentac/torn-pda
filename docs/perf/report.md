@@ -152,7 +152,7 @@ Three injected features run on every Torn page by default:
 
 Observers with `subtree` and `characterData` run on every DOM change. Torn's DOM changes often (timers, chat, bars).
 
-Fix: one shared observer in the page data layer, with work batched per animation frame. Measure the storage size once per session, not on each page.
+Fix: one shared observer in the page data layer, with work batched per animation frame. Keep the trim check on every page, because Torn's chat cache grows while you use the app, and the trim must run before the chat reads its cache. Make the check cheaper instead: on each page, read only the chat cache keys. Do the full scan of every key (for the safety limit and the Crashlytics values) at most once every few minutes, with the time of the last scan in `sessionStorage`. Measure the scan first, because with a few MB of storage it can cost only a few milliseconds.
 
 Measure with: `hooks.moInjected`, `hooks.moCbMsInjected` and `hooks.ivCbMsInjected` in the probe, with the probe's hooks injected first (see "Track 0").
 
@@ -160,7 +160,7 @@ Measure with: `hooks.moInjected`, `hooks.moCbMsInjected` and `hooks.ivCbMsInject
 
 #### 1.7 Userscripts run late and cost Dart work on every navigation
 
-This cost applies to users with userscripts. It grows with the number of scripts installed. There are four parts, all verified.
+This cost applies to users with userscripts. Many players install PDA for its userscripts, so this group can be most users. The analytics user property `scripts_on` (`userscripts_provider.dart`) gives the share, so ask the maintainer for it. If most users have active scripts, treat this finding as tier 1. The cost grows with the number of scripts installed. There are four parts, all verified.
 
 1. `@run-at document-end` scripts run from `onLoadStop` with `evaluateJavascript`, one at a time. `onLoadStop` fires after the window `load` event, which waits for every image. Tampermonkey runs these scripts at `DOMContentLoaded`. On Torn's image-heavy pages, the difference can be seconds. The plugin's own native "document end" option also waits for `load` on Android, so a switch to that option does not help.
 2. Before the first end script runs, `onLoadStop` awaits many `removeUserScriptsByGroupName` calls in sequence (`webview_full.dart:1913`). It makes one call for each script that does not match the page, including disabled scripts. With 40 installed scripts and 3 matches, that is 37 round trips. On iOS, each removal rebuilds the whole `WKUserContentController` and sends every script source to the web content process again. It does this also for a removal that matched nothing.
@@ -177,7 +177,7 @@ Each `PDA_http*` helper, `PDA_storage` and `PDA_evaluateJavascript` awaits `wind
 
 The gate exists because the first load can start before Dart registers the handlers. The native view starts its first load before Dart's `onWebViewCreated` runs, and that callback can first await `clearAllCache`. So the handlers are not certain to exist at document start. But the plugin event is a much later signal than necessary.
 
-There is also a correctness bug. If a script requests the same URL again within 2 seconds, each helper returns `undefined` (`remote_snippets.dart`, the `loadedPdaApiGetUrls` test). A second script that requests the same URL gets no response.
+There is also a correctness bug. If a script requests the same URL again within 2 seconds, each helper returns `undefined` (`remote_snippets.dart`, the `loadedPdaApiGetUrls` test). A second script that requests the same URL gets no response. The deduplication came in June 2023, in commit `b3789bd9` ("Tentative fix for API handlers"). The same commit started to add the handler scripts at two points of each navigation. A userscript that ran twice then sent each request twice, and the 2-second test drops the second copy. The commit message does not give a reason, so this explanation is an inference from the code.
 
 Fix: set a "handlers registered" flag from Dart at the end of handler registration. Gate the helpers on that flag, not on the plugin event. Keep the 2-second deduplication, but return the first call's promise. Read the history of the gate first (`git log -S __PDA_platformReadyPromise`), and test the early call on iOS.
 
@@ -187,7 +187,7 @@ Measure with: `bridge.firstAt` in the probe. It must move from after `nav.load` 
 
 If the native chat module is compiled in and the user hides Torn's web chat, the app sets `contentBlockers` to `[tchatBundleBlocker]` (`webview_full.dart:682`). The plugin then sends each request through `shouldInterceptRequest` to `ContentBlockerHandler.checkUrl`. Before it tests any rule, `checkUrl` calls `getResourceTypeFromUrl`, which makes a blocking `HttpURLConnection` HEAD request for every `http` and `https` URL. The request has no cookies and a 15-second timeout. So every subresource waits for one more full network round trip.
 
-The public repository has only a stub of the chat engine, so the public build does not do this. Official builds for users who hide web chat do.
+The public repository has only a stub of the chat engine, and this is on purpose. `.gitignore` excludes `lib/torn-pda-native/` and `lib/config/*.dart`, and `lib/config/chat_engine.dart.example` says that native chat is not configured in public builds. So the public build does not do this. Official builds for users who hide web chat do.
 
 Fix: patch the plugin so that it skips the HEAD request for rules without a `resourceType` trigger. Or block the chat bundle with a document-start script.
 
