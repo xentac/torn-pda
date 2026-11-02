@@ -140,6 +140,18 @@ def run_metrics(run: Path) -> dict[str, dict[str, float]]:
         # The injection delay is the time after the first byte.
         if "probeStart" in flat and "nav.ttfb" in flat:
             flat["injectAfterTtfb"] = round(flat["probeStart"] - flat["nav.ttfb"], 1)
+        # Test userscripts (tools/replay/userscripts/): the wait of a document-start PDA_httpGet,
+        # and when the document-end scripts start after the page load.
+        for metric, end, start in (
+            ("us.start.waitMs", "us.start.readyAt", "us.start.callAt"),
+            ("us.start.rttMs", "us.start.answerAt", "us.start.callAt"),
+            ("us.endAll.afterLoad", "us.endAll.start", "nav.load"),
+        ):
+            if end in flat and start in flat:
+                flat[metric] = round(flat[end] - flat[start], 1)
+        second = [flat[k] for k in ("us.endProfile.start", "us.endPage.start") if k in flat]
+        if second and "us.endAll.start" in flat:
+            flat["us.endGapMs"] = round(min(second) - flat["us.endAll.start"], 1)
         pages.setdefault(name, {}).update({f"{kind}.{k}": v for k, v in flat.items()})
     return pages
 
