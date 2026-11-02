@@ -17,7 +17,7 @@ Last update: 2026-11-02 (second session).
   capture, anonymize, snapshot, automated test run. Three flows pass:
   `attack.yaml`, `faction.yaml` and `crimes.yaml`. Track 0 (baseline timing)
   done: all six steps of "Next steps: the baseline" below. The first
-  baseline is in `~/pda-recordings/baselines/f4aeebdb-profile/` (one file
+  baseline is in `~/pda-recordings/baselines/d20df8c8-profile/` (one file
   per flow, 8 runs each, not in git).
 - The user approved the report on 2026-11-02, with the comments answered.
   Follow the plan until the upstream developer gives feedback.
@@ -267,8 +267,8 @@ The original plan:
 Use `tools/replay/run-baseline.sh FLOW 8 RECORDINGS...` (see the replay
 README). It boots a new emulator from the snapshot for each run. On
 2026-11-02, 8 runs of each flow passed (24 of 24), on the profile build of
-commit `f4aeebdb`, WebView 133.0.6943.137, recorded latency. The files are
-in `~/pda-recordings/baselines/f4aeebdb-profile/`.
+commit `d20df8c8`, WebView 133.0.6943.137, recorded latency. The files are
+in `~/pda-recordings/baselines/d20df8c8-profile/`.
 
 Medians:
 
