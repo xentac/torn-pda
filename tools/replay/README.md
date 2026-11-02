@@ -29,6 +29,7 @@ Rules:
 | `emu-clock.sh` | Sets the emulator clock to the time of a recording. |
 | `common.sh` | The proxy port, the passthrough hosts, the saved hosts and the recording folder. |
 | `test_replay.py` | Tests for the three addons, with made-up data. |
+| `userscripts/` | Test userscripts for the snapshot, and `static.json`, the URLs at which the proxy serves them. |
 
 ## One-time setup
 
@@ -215,10 +216,22 @@ with `MAESTRO_CLI_NO_ANALYTICS=1`.
 
    It clears the app, makes PDA the app for torn.com links and enters the
    key. Then it opens the faction page and a profile once, and closes the
-   first-run tips. Last, it opens `tornpda://pda-replay.invalid/blank`. The
+   first-run tips. It adds the test userscripts from `userscripts/` through
+   PDA's remote load dialog (`flows/add-userscripts.yaml`). Last, it opens `tornpda://pda-replay.invalid/blank`. The
    replay proxy answers this blank page itself. Thus, at the start of a test,
    no Torn page is open. Then it saves the emulator snapshot `replay-ready`. PDA's own tips are invisible to Maestro,
    so the script closes them with `adb` and checks that none is left.
+   Set `PDA_SNAPSHOT` to save the state under another name, so that the
+   old snapshot stays.
+
+   The proxy serves the files in each `static.json` of `PDA_STATIC` at
+   fixed URLs, without a recording. By default these are
+   `userscripts/static.json` and, if it exists,
+   `$PDA_REC_DIR/userscripts/examples/static.json`. The second file maps
+   the GitHub URLs of PDA's five example scripts to copies of them. PDA
+   downloads these scripts on its first run. To make the copies, save each
+   `userscripts/<name> (Torn PDA).js` from `origin/master`, and write the
+   map. Without the copies, the downloads are misses.
 
 2. Run a test:
 

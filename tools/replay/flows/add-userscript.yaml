@@ -1,0 +1,25 @@
+# Adds one userscript from ${URL}, and waits until ${NAME} is in the list.
+# add-userscripts.yaml runs it on the userscripts page.
+appId: com.manuito.tornpda
+---
+# The "+" button has no label.
+- tapOn:
+    point: "21%,15%"
+- tapOn: "Configure"
+- tapOn: "Remote URL"
+- inputText: ${URL}
+- tapOn: "Fetch"
+# Load stays disabled until the fetch ends.
+- extendedWaitUntil:
+    visible:
+      text: "Load"
+      enabled: true
+    timeout: 10000
+- tapOn: "Load"
+- tapOn:
+    text: "Continue"
+    optional: true
+# The success message is a toast, which Maestro cannot see.
+- extendedWaitUntil:
+    visible: ${NAME}
+    timeout: 10000

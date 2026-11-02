@@ -1,0 +1,40 @@
+# Adds the test userscripts (tools/replay/userscripts/) through PDA's remote load dialog.
+# make-snapshot.sh runs it before open-blank.yaml. The replay proxy serves the scripts.
+appId: com.manuito.tornpda
+---
+- openLink: "tornpda://pda-replay.invalid/blank"
+- extendedWaitUntil:
+    visible: ".*No Torn page is open.*"
+    timeout: 30000
+# The page title opens the browser menu.
+- tapOn:
+    point: "44%,9%"
+- tapOn: "User Scripts"
+- tapOn:
+    text: "Yes, I promise!"
+    optional: true
+# PDA's example scripts come on the first run. The proxy serves them if they were saved.
+- extendedWaitUntil:
+    visible: "auto-stock-fill"
+    timeout: 10000
+- runFlow:
+    file: add-userscript.yaml
+    env:
+      URL: https://pda-replay.invalid/userscripts/perf-start.user.js
+      NAME: PDA Perf Test Start
+- runFlow:
+    file: add-userscript.yaml
+    env:
+      URL: https://pda-replay.invalid/userscripts/perf-end-all.user.js
+      NAME: PDA Perf Test End All
+- runFlow:
+    file: add-userscript.yaml
+    env:
+      URL: https://pda-replay.invalid/userscripts/perf-end-profile.user.js
+      NAME: PDA Perf Test End Profile
+- runFlow:
+    file: add-userscript.yaml
+    env:
+      URL: https://pda-replay.invalid/userscripts/perf-end-page.user.js
+      NAME: PDA Perf Test End Page
+- back
