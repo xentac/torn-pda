@@ -432,14 +432,14 @@ Keep automated runs on the live site few and at human speed, because of Torn's r
 - Send the measurement hooks first. Then every later claim is a number that the maintainer can reproduce.
 - Send A1 and B1 as one fix per pull request. Give each one before and after numbers and a short list of the features that you tested. The correctness bugs are the easiest to accept: the stale document-start script, the `undefined` duplicate response, the attack condition and the `http` race.
 - For P, B2 and C, open an issue with the baseline first. Put each new path behind a Remote Config flag and a user setting, off by default, and keep the old path. `webViewHardwareLayerMode` and the tab parking flags are the pattern to copy.
-- Expect resistance to: removing `onLoadResource` without an iOS plan, in-page `fetch` for `PDA_http*`, changed defaults of user settings, engine changes, and changes to the private chat module.
+- Expect resistance to: removing `onLoadResource` without an iOS plan, changed defaults of user settings, engine changes, and changes to the private chat module.
 - Upstream `develop` changes fast. 17 of its last 74 commits touched `webview_full.dart`. Rebase each track on `develop` every week, and keep the measurement hooks in their own commit.
 
 ## Questions for the maintainer
 
 These items change behavior or depend on reasons that the code does not show. Ask the maintainer before you change them.
 
-1. `PDA_http*` requests go through `dart:io`, without the WebView cookies. Tampermonkey's `GM_xmlhttpRequest` uses the browser network stack, with cookies, the HTTP cache and connection reuse. An in-page `fetch` for same-origin and CORS-enabled URLs is faster. Is the current design deliberate, for example for API key safety or for Torn's rules on scripts?
+1. `PDA_http*` requests go through `dart:io`, without the WebView cookies. Tampermonkey's `GM_xmlhttpRequest` uses the browser network stack, with cookies, the HTTP cache and connection reuse. Tampermonkey makes these requests from the extension, so the page's rules do not apply to them. An in-page `fetch` cannot replace `PDA_http*`. Torn's Content-Security-Policy allows `connect-src` only to `'self'` and some Torn websocket hosts, so the browser blocks a `fetch` to FF Scouter, YATA or TornStats. Other hosts must also send CORS headers for the Torn origin. So the Dart path stays. The open question is only how to make it faster: start it earlier (1.8), and reuse one HTTP client with keep-alive. Is the current design deliberate, for example for API key safety or for Torn's rules on scripts?
 2. What is the live Remote Config value for `browser_engine_prewarm_unmount_after_load`, and what did the hardware layer A/B test show?
 3. Does any feature depend on the HTML copy in `onLoadStart`?
 4. What does the private `ChatEngine.pageLoadJS` do on each page load, and how much does it cost? Only that file and `torn_chat_source` are stubs. The rest of the chat code is public.
