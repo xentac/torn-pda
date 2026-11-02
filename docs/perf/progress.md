@@ -20,8 +20,9 @@ Last update: 2026-11-02 (fifth session).
   (`listen: false`, 500 entries at most) and the show-case timer. PR #501
   had only a counter on top of their travel check, and was merged on
   2026-11-02. See "Next steps".
-- Branch `perf/analysis`, based on `origin/develop` at `610af44f` since the
-  rebase on 2026-11-02 (fifth session). The branch before the rebase is the
+- Branch `perf/analysis`, based on `origin/develop` at `34594b4c` (after
+  the merge of #501). The first rebase, on `610af44f`, was on 2026-11-02
+  (fifth session). The branch before the rebase is the
   local `perf/analysis-pre-610af44f`. The rebased profile build is
   `~/pda-recordings/apks/d4a7dbad.apk`. One attack run on it passed. It
   has new misses that the old recordings cannot answer, because the new
@@ -446,6 +447,44 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 4. 16 runs for the profile and faction pages, where the `nav.load` spread is
    over 10 %.
 5. Find why one crimes run went back to the blank page (see the lessons).
+
+### A1 after the maintainer's commit 610af44f
+
+Measured on 2026-11-02: 8 runs of each build on the attack flow,
+alternated in one session, all 16 passed. Old build `50a4a3d9.apk` (our
+base before `610af44f`), new build `d4a7dbad.apk` (`perf/analysis` rebased
+on `610af44f`, without #501). The summaries and the comparison are in
+`~/pda-recordings/comparisons/a1-develop-d4a7dbad-vs-50a4a3d9/`.
+
+| Page | `getHtml` | `setState` | `WebViewProvider.notify` | `lag.over50` | `nav.load` ms |
+|---|---|---|---|---|---|
+| `profiles.php?XID=N` | 15 to 3 | 83.5 to 6 | 5 to 4 | 3 to 2.5 (p 0.72) | 1184 to 1205 (p 0.82) |
+| `page.php?sid=attack` | 15 to 2 | 27 to 6 | 2 to 3 | 1 to 0 (p 0.008) | 903 to 908 (p 0.11) |
+| `page.php?sid=attackLog` | 12 to 2 | 61 to 6 | 2 to 3 | 0 to 0 | 1204 to 1224 (p 0.80) |
+
+All count changes have p < 0.01. The A1 targets for `setState` (under 10)
+are met on all three pages. The target for `getHtml` (at most 2) is met
+on the attack pages, and the profile page has 3. `onProgressChanged`
+fell from 11 to 146 ms of Dart time per page to 1 to 3 ms, and
+`onLoadStart` from 48 to 74 ms to under 1 ms. The page load times did
+not change.
+
+A lead to explain before the numbers go to the maintainer:
+`dart.frames.n` rose from 35 to 98 frames per page record to about 600
+on every page, and `dart.lag.totalMs` rose by 46 to 131 %. 600 frames in
+a 10 s record is about 60 frames each second, so in the new build
+something draws a frame all the time, even on a page that does not
+change. Each frame is cheap (`frames.uiAvgMs` 0.2 to 0.5 ms), but
+`frames.rasterOver16` rose too. The cause is not known yet. Candidates
+are new animations in `610af44f`, for example in the chat or the browser
+bar. `onLoadStop` also takes longer (30 to 64 ms on the attack page,
+148 to 226 ms on the profile page). The new build also makes requests
+that the recordings do not have (see "State"), so part of the timing
+changes can come from them.
+
+On the new build, the profile page has a full record (`final` 0), not
+the `pagehide` record. Thus the profile page's time metrics are not
+comparable between the two builds.
 
 ### Fix 1.1: the travel check (done)
 
