@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-02.
+Last update: 2026-11-02 (second session).
 
 ## State
 
@@ -16,7 +16,12 @@ Last update: 2026-11-02.
 - Track T (record and replay) works from start to finish on the emulator:
   capture, anonymize, snapshot, automated test run. Three flows pass:
   `attack.yaml`, `faction.yaml` and `crimes.yaml`. Track 0 (baseline timing)
-  is not started. The plan is in "Next steps: the baseline" below.
+  started: step 1 of "Next steps: the baseline" below is done.
+- The report also has the URL
+  https://claude.ai/code/artifact/7b1f1105-0a76-480b-8da4-f970a44e4532.
+  Comments arrive there. Version 5 answers four comments (1.6 storage trim,
+  1.7 share of users with scripts, 1.8 history of the 2-second
+  deduplication, 1.9 private chat engine).
 
 ## Environment
 
@@ -41,7 +46,8 @@ Last update: 2026-11-02.
   - `replay-ready`: the fake user, built by `make-snapshot.sh`. Tests start
     from it.
 - Recordings, `identity.json` and `idmap.json` are in `~/pda-recordings`, never
-  in git. The fake PDA key is in `idmap.json` (the `keys` values).
+  in git. The fake PDA key is in `idmap.json`: it is the only `keys` value
+  with 16 characters.
 
 ## Recordings
 
@@ -132,7 +138,16 @@ The goal is a baseline file for each test flow (attack, faction, crimes) on the
 emulator. Later PDA builds are compared with it. Do the steps in this order.
 Each step lists how to know that it is done.
 
-### 1. Start the tests from an empty browser
+### 1. Start the tests from an empty browser (done)
+
+Done on 2026-11-02. The replay proxy answers `https://pda-replay.invalid/blank`
+with a fixed page. `make-snapshot.sh` opens it last through
+`flows/open-blank.yaml` (`tornpda://` links open as `https://` in PDA). The
+first runs after the change had no `getProfileData` miss. The crimes flow
+still has a few misses that change from run to run, because Torn chooses a
+random graffiti banner and cracking image.
+
+The original plan:
 
 `make-snapshot.sh` leaves the profile page from `flows/open-profile.yaml`
 open. Every test then restores that tab first. It loads a page in the

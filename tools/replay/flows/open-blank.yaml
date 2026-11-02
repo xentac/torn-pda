@@ -1,0 +1,10 @@
+# Leaves the browser on the replay proxy's blank page, so that no Torn page is
+# open in the snapshot. Otherwise, the open page sends its own requests when a
+# test starts. make-snapshot.sh runs this last.
+# PDA opens tornpda:// links as https://, and the proxy answers this host itself.
+appId: com.manuito.tornpda
+---
+- openLink: "tornpda://pda-replay.invalid/blank"
+- extendedWaitUntil:
+    visible: ".*No Torn page is open.*"
+    timeout: 30000
