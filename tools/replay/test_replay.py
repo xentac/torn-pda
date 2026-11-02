@@ -508,6 +508,13 @@ async def test_replay_misses_never_forward(replay):
     assert KEY not in log and "REDACTED" in log
 
 
+async def test_replay_answers_the_blank_page(replay):
+    addon, _, tmp = replay
+    r = await ask(addon, "GET", pda_replay.BLANK_URL)
+    assert r.status_code == 200 and r.headers[pda_replay.HEADER] == "blank"
+    assert not (tmp / "misses.jsonl").exists()
+
+
 def test_replay_refuses_live_torn_connections(replay):
     addon, _, _ = replay
     data = ServerConnectionHookData(server=Server(address=("www.torn.com", 443)), client=tflow.tclient_conn())

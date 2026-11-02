@@ -4,6 +4,8 @@ The addon never forwards a request. A request with no recorded answer gets a
 502 with the header `x-pda-replay: miss`, and the miss goes to the miss log.
 Live connections to hosts that match `pda_replay_guard` (torn.com by default)
 are refused, so that a mistake in the configuration cannot reach Torn.
+The host in BLANK_URL gets a fixed empty page. make-snapshot.sh leaves the
+browser on it, so that no Torn page runs when a test starts.
 
 Matching: method, host, path, the query without the ignored parameters, and the
 body. Form bodies (URL-encoded and multipart) are compared field by field without
@@ -39,6 +41,9 @@ import urllib.parse
 from mitmproxy import certs, ctx, http, io
 
 HEADER = "x-pda-replay"
+# PDA opens tornpda:// links as https://. The .invalid host can never be a real site.
+BLANK_URL = "https://pda-replay.invalid/blank"
+BLANK_PAGE = b"<!doctype html><title>Replay start</title><p>Replay start page. No Torn page is open.</p>"
 DEFAULT_IGNORE = "rfcv,_,key,timestamp,t"
 
 
@@ -225,6 +230,9 @@ class PdaReplay:
         r = flow.request
         if r.headers.get("upgrade", "").lower() == "websocket":
             self._answer_miss(flow, "websocket")
+            return
+        if r.pretty_url == BLANK_URL:
+            flow.response = http.Response.make(200, BLANK_PAGE, {"content-type": "text/html", HEADER: "blank"})
             return
         kind, rec = self.find(r)
         if rec is None:

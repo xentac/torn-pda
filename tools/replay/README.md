@@ -214,8 +214,10 @@ with `MAESTRO_CLI_NO_ANALYTICS=1`.
    ```
 
    It clears the app, makes PDA the app for torn.com links and enters the
-   key. Then it opens the faction page once, closes the first-run tips, and
-   saves the emulator snapshot `replay-ready`. PDA's own tips are invisible to Maestro,
+   key. Then it opens the faction page and a profile once, and closes the
+   first-run tips. Last, it opens `tornpda://pda-replay.invalid/blank`, a
+   blank page that the replay proxy answers itself, so that no Torn page is
+   open when a test starts. Then it saves the emulator snapshot `replay-ready`. PDA's own tips are invisible to Maestro,
    so the script closes them with `adb` and checks that none is left.
 
 2. Run a test:
