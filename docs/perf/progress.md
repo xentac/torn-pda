@@ -543,6 +543,26 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    | `factions.php` | 10, 1084 KB | 21.8, 21.5 ms | 0.46, 0.39 ms |
    | `item.php` | 9, 1061 KB | 21.8, 21.4 ms | 0.39, 0.40 ms |
 
+   Memory of the cache (the user asked to reduce it). Of the 44
+   enabled scripts, 9 contain `###PDA-APIKEY###` (1.6 MB) and 1 of
+   them also has curly quotes. FF Scouter has neither. 20 scripts
+   have characters outside Latin-1, so Dart keeps them at 2 bytes for
+   each character. A full cache holds about 7.4 MiB for this user.
+   Two other versions were tested locally, not committed (medians on
+   the host, two runs):
+
+   - Flags only (whether the source has the placeholder or curly
+     quotes, no copy): 0.8 to 2.8 ms, but crimes stays at 10 ms,
+     because cRaCked still takes the slow path.
+   - Mixed (a full copy only for a script that needs a change, a flag
+     for the others): 0.8 to 1.8 ms on all seven pages, about
+     2.8 MiB for this user, nothing for a user without such scripts.
+     The extra time over the full cache is the copy that wraps the
+     source on each call.
+
+   A version with no copy at all is possible: keep the offsets of the
+   placeholders and quotes, and build the result from them.
+
    The risk of a script change during `onLoadStop`: since part 1, the
    end scripts go to `Future.wait`, which reads the list at once, with
    no await between the steps. The other reads have no await inside
