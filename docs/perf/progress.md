@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-03 (end of the ninth session).
+Last update: 2026-11-02 (end of the ninth session).
 
 ## State
 
@@ -459,8 +459,8 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    3. Commit the fix on a branch from `perf/analysis`, build its APK,
       and run 8 runs of `53fad5c1.apk` and the new APK, alternated, on
       `replay-ready-b1`. Before the 16 runs, do 2 runs of the new APK
-      only, and look at the probe fields. In the ninth session, this
-      check would have found the failed first try 25 minutes earlier.
+      only, and look at the probe fields. In the ninth session, the first
+      try failed, and 16 runs found it. Two runs find it in 4 minutes.
    4. Compare them with `summarize.py --compare` and
       `--metric probe.us.endAll.afterLoad --metric probe.us.endGapMs`.
       The spread of `us.endGapMs` is large, so 16 runs of each build can
@@ -565,14 +565,14 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 
 ### Fix 1.8: the platform-ready wait
 
-Done on 2026-11-03 (ninth session). `origin/develop` had no such change.
+Done on 2026-11-02 (ninth session). `origin/develop` had no such change.
 
 Why the wait exists: Dart registers the handlers once per WebView, in
-`onWebViewCreated`, after it awaits `clearAllCache` and the script setup.
-The first page of a tab can run its document-start scripts before that.
-A call to a handler that is not registered gets `null` back without an
-error (`in_app_webview_controller.dart` in the Android plugin falls
-through `_javaScriptHandlersMap.containsKey`). If the native channel is
+`onWebViewCreated`. Before that, it awaits `clearAllCache` and the script
+setup. The first page of a tab can run its document-start scripts before
+the handlers exist. A call to a missing handler gets `null` back without
+an error. In the Android plugin, `in_app_webview_controller.dart` skips
+the `_javaScriptHandlersMap.containsKey` block. If the native channel is
 not ready, the call never settles. After the first page, the handlers
 always exist. The plugin event comes only in `onPageFinished` (Android)
 or `didFinish` (iOS). iOS never sets `_platformReady`.
@@ -588,13 +588,15 @@ handlers, so other WebViews do not change. Document-end scripts run in
 `onLoadStop`, after the event, so they do not change.
 
 A lesson: the first try (`57955d23`) asked once at document start, and
-16 runs showed no change. The bridge's `callHandler` does not exist yet
-when PDA's document-start scripts run. It appears some 20 to 30 ms
-later (the probe polls for it for the same reason). The try/catch hid
+16 runs showed no change. PDA's document-start scripts run before the
+bridge's `callHandler` exists. It appears some 20 to 30 ms later (the probe polls for it for the same reason). The try/catch hid
 the error. The fix now retries every 10 ms, 100 times at most.
 
 The run: 8 runs of `53fad5c1` and `244141a6`, alternated, on
-`replay-ready-b1`. All 16 passed. The summaries are in
+`replay-ready-b1`. All 16 passed. Two check runs of `244141a6` came
+before them (`20261103T010339Z` and `20261103T010530Z`). They are not in
+the summary. Give `summarize.py` the run folders by name, not with a
+time glob, because a glob also takes such check runs. The summaries are in
 `~/pda-recordings/baselines/fix18-244141a6/` (`old/` and `new/`). The
 runs of the first try are in `~/pda-recordings/baselines/fix18/`.
 
@@ -602,19 +604,23 @@ Medians in ms (p < 0.001 for all):
 
 | Page | `us.start.waitMs` | `us.start.rttMs` |
 |---|---|---|
-| `profiles.php?XID=N` | 803 to 42 | 1012 to 180 |
+| `profiles.php?XID=N` | 803 to 36 | 1012 to 139 |
 | `page.php?sid=attack` | 647 to 60 | 699 to 92 |
 | `page.php?sid=attackLog` | 515 to 79 | 612 to 142 |
 
 Other results:
 
-- All 27 start-script answers have status 200.
+- All 22 start-script records have status 200. Some records have no
+  `us.start` field, as in the baseline.
 - `nav.load` did not change.
 - On the profile page, `nav.dcl` (+48 ms, +4.7 %), `domInteractive`
-  (+4.6 %) and `paint.lcp` (+4.9 %) are later, with p < 0.02. The answer
-  and its bridge work now come while the page loads. The first try did
-  not show this, so it comes from the earlier answer. Name it in the PR.
-- On the attack page, `onLoadStop` is 41 % shorter (p 0.035).
+  (+4.6 %) and `paint.lcp` (+4.9 %) are later, with p < 0.03. The
+  attack pages do not show this. The likely cause is the earlier answer,
+  but there are two candidates. The bridge work of the answer can delay
+  the page parse, which is a real cost on a phone. Or the Dart request
+  and the page share the one replay proxy, which is only a cost of the
+  test. The first try did not show the delay. Name it in the PR.
+- On the attack page, `onLoadStop` is 54 % shorter (p 0.010).
 - Not tested: the first page of a new tab. The replay flow opens no new
   tab. The PR test plan asks for it on a phone.
 
