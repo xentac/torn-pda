@@ -497,12 +497,50 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    WKWebView asks the navigation policy for back and forward too. The
    park path returns to the same page, so it is not affected.
 
-   The user chose the small fix: `_prepareScriptsForHistoryStep` reads
-   the target from `getCopyBackForwardList()` and runs the stale
-   removal and the add, as `_loadUrl` does, before the three native
-   history calls. Android only. Measurement branch:
-   `perf/history-step-scripts` (`c882f865`). It passes `flutter
-   analyze`. No emulator test and no upstream branch yet.
+   Correction, found with the emulator: the swipe branch with native
+   `goBack()`/`goForward()` in `_tryGoBack`/`_tryGoForward` is dead
+   code. Every `WebViewFull` is built with `useTabs: true`
+   (`webview_provider.dart`), also with "Use tabs in browser" off. The
+   swipe always goes through `_loadUrl`. The only native `goBack()` is
+   the back button when `_backButtonPopsContext` is false (a trade that
+   goes to a vault, and the chaining browser's medical menu, where
+   userscripts do not run). The first fix (a helper before the native
+   calls, `perf/history-step-scripts`) was dropped and deleted.
+
+   The test setup: snapshot `replay-ready-b1-notabs` (from
+   `replay-ready-b1`, tab mode off, plus the narrow start scripts
+   `perf-start-profile` and `perf-start-page`), the flows
+   `add-start-narrow.yaml` and `history-back.yaml`. On the old APK, the
+   swipe back from the attack page gave a fresh `navigate` load of the
+   profile, with `startProfile` at 59 ms and no `startPage`. So the
+   reported back path is clean.
+
+   The user wants one fix for every Android navigation type, also the
+   ones that the page starts (`history.back()`, a POST). The plan, in
+   two PRs:
+
+   1. PR A, the `@match` semantics (issue #314, closed 2026-04-30 by
+      `9b104324`, but not complete). Branch `perf/match-semantics`
+      (`0ead1112`): the `#hash` is not part of the match (as in
+      Tampermonkey), `http*://` is the same as `*://`, and a host
+      without a port matches any port. 4 new tests, 93 model tests
+      pass. Not done, a later report item: `@exclude`,
+      `@exclude-match` and `@include` are ignored. The user's export
+      uses none of them, but has five exact patterns (no trailing `*`).
+   2. PR B, the page guard: each registered start script checks
+      `location.href` against its own `@match` before it runs, inside
+      the once-per-document condition. Registration stays per
+      navigation, so the cost is a few regex tests per page. Tests: a
+      Node test that compares the generated check with Dart
+      `matchesTarget` (also on the user's export), and a replay test in
+      which a test script on the attack page calls `history.back()`
+      once. Then 8 and 8 alternated runs.
+
+   What stays after B: on a navigation that Android does not report,
+   the target's own start scripts come late, from the `onLoadStop`
+   probe (once each). Only "register all start scripts always" fixes
+   that, and it costs a parse of every enabled source on each page.
+   Measure it before any proposal.
 
    A correction to the miss counts in the notes: `run-test.sh` prints
    only the records of kind `miss`. The counts of 47 to 54 above are
