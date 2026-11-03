@@ -566,8 +566,9 @@ said "in one `evaluateJavascript`", but the user chose separate calls. In
 one call, a syntax error in one script stops all end scripts, and in-page
 `eval` can be blocked by the page's CSP. The order stays the same: the
 Android plugin posts each call to the main looper in sequence
-(`injectDeferredObject` in `InAppWebView.java`), and WKWebView also keeps
-the order. The steps before the first script did not change, so
+(`injectDeferredObject` in `InAppWebView.java`). On iOS, the plugin
+calls `WKWebView.evaluateJavaScript` directly, with no queue of its own
+(`InAppWebView.swift`). iOS and Windows are not tested. The steps before the first script did not change, so
 `us.endAll.afterLoad` was not expected to change. A reorder of those
 steps is a separate fix, and it needs an iOS test plan.
 
