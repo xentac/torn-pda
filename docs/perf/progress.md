@@ -20,12 +20,14 @@ Last update: 2026-11-03 (eleventh session).
   (`listen: false`, 500 entries at most) and the show-case timer. PR #501
   had only a counter on top of their travel check, and was merged on
   2026-11-02. See "Next steps".
-- Branch `perf/analysis`, based on `origin/develop` at `19912e5a` (the
-  merge of #502) since the eleventh session. That rebase had no
-  conflicts. The branch before it is the local
-  `perf/analysis-pre-19912e5a`. The fork does not have the new rebase
-  yet: a force push needs the user's approval. Before that, it was based
-  on `a2377dcc` since the
+- Branch `perf/analysis`, based on `origin/develop` at `1edf12c5` (the
+  merge of #504) since the eleventh session. Both rebases of that
+  session had no conflicts. The branches before them are the local
+  `perf/analysis-pre-19912e5a` and `perf/analysis-pre-1edf12c5`. The
+  fork has the rebased branch (force push with the user's approval,
+  2026-11-03). The user also had all merged branches deleted on the
+  fork: it now has only `master` and `perf/analysis`. Before that, it
+  was based on `a2377dcc` since the
   eighth session. The rebase had no conflicts. The new `develop` has only
   `c27e9e54` (the changelog pauses its animation under the browser) and a
   TornTools catalog update. The branch before this rebase is the local
@@ -66,6 +68,9 @@ Last update: 2026-11-03 (eleventh session).
   - `96f83dde`: `perf/analysis` on `develop` at `19912e5a`. It has fix
     1.8. It is the new B1 base, in place of `53fad5c1`. Eleventh
     session.
+  - `31711aab`: `perf/analysis` on `develop` at `1edf12c5`. It has
+    fixes 1.8 and 1.7 part 1. It is the B1 base in place of `96f83dde`.
+    Eleventh session.
   - `57955d23`: the first try of fix 1.8, which did not work. Only for
     the record in "Fix 1.8: the platform-ready wait".
 - Emulator snapshots for replay: `replay-ready` is the A1 snapshot. Keep
@@ -391,8 +396,8 @@ table when a PR is opened, changed or closed.
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
 | GM handler crashes after renderer recovery (before this project) | none | `fix/gm-handler-reinject` | [#480](https://github.com/Manuito83/torn-pda/pull/480) | Merged on 2026-07-22. |
-| B1 1.7 part 1, end scripts together | `perf/end-scripts-together` (`79ca88ea`) | `end-scripts-together` (`a4113db9`, on `a2377dcc`) | [#504](https://github.com/Manuito83/torn-pda/pull/504) | Open since 2026-11-03. Draft text in `~/pda-recordings/pr-drafts/pr-end-scripts-together.md`. |
-| B1 1.8, platform-ready wait | `perf/userscript-ready-ping` (`244141a6`) | `userscript-ready-ping` (`b49a6dd1`, on `a2377dcc`) | [#502](https://github.com/Manuito83/torn-pda/pull/502) | Merged on 2026-11-03 as `19912e5a`, without comments or changes. |
+| B1 1.7 part 1, end scripts together | deleted | deleted | [#504](https://github.com/Manuito83/torn-pda/pull/504) | Merged on 2026-11-03 as `1edf12c5`, without comments or changes. |
+| B1 1.8, platform-ready wait | deleted | deleted | [#502](https://github.com/Manuito83/torn-pda/pull/502) | Merged on 2026-11-03 as `19912e5a`, without comments or changes. |
 | A1 1.1, travel check counter | none (upstream did 1.1) | `travel-check-observer` (commit `b47209b0`, from local `travel-check-counter`) | [#501](https://github.com/Manuito83/torn-pda/pull/501) | Merged on 2026-11-02 as `9b690feb`. The maintainer then shortened its two comments (`34594b4c`). Keep comments in upstream branches to a few words. |
 
 To see the state of all PRs:
@@ -490,8 +495,36 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
       This APK is the new base for B1 fixes, in place of `53fad5c1`,
       because it has fix 1.8.
 
-   Fix 1.7, part 3, proposed to the user (eleventh session), not yet
-   written. `develop` at `19912e5a` still has the lazy chain. The fix
+   Fix 1.7, part 3, eleventh session. Later on the same day, #504 was
+   merged (`1edf12c5`), so `perf/analysis` was rebased again and the
+   base APK is `31711aab`. The user approved the `.toList()` fix and
+   asked for a Dart benchmark with many scripts (the user has 73,
+   most of them enabled). The measurement branch is
+   `perf/cond-sources-list`: the benchmark
+   `test/perf/cond_sources_bench_test.dart` (run it with
+   `PDA_BENCH=1`) and the fix ("Return a real list from getCondSources"). The benchmark uses the real
+   provider with generated scripts (sources of 4 to 300 KB, 1 in 4
+   on every Torn page) and repeats the reads of one page load on a
+   profile page. Medians on the host, per page load:
+
+   | Scripts (enabled, on the page) | Base | `.toList()` | Cached `adaptSource` |
+   |---|---|---|---|
+   | 10 (9, 5) | 2.6 to 2.7 ms | 2.5 ms | 0.08 ms |
+   | 40 (34, 20) | 8.0 to 8.2 ms | 5.7 to 7.7 ms | 0.08 to 0.17 ms |
+   | 73 (61, 37) | 10.9 to 15.6 ms | 13.8 to 14.3 ms | 0.15 to 0.30 ms |
+   | 150 (125, 75) | 25.1 to 25.9 ms | 22.0 to 31.7 ms | 0.71 to 0.74 ms |
+
+   So the `.toList()` gives no gain that the benchmark can see. The
+   time is in `adaptSource`: three passes over each full source on
+   each call, and the start scripts go through it twice per page
+   load. The cache column is a local test, not committed (a map by
+   `storageId`, valid while the source is the same object and the
+   key is the same). A phone is slower than the host. The work is on
+   the UI isolate, and the call in `shouldOverrideUrlLoading` comes
+   before the navigation policy returns. The cache is a proposal to
+   the user, not yet approved.
+
+   The first proposal to the user (before the benchmark): `develop` at `19912e5a` still has the lazy chain. The fix
    is a `.toList()` inside the `UnmodifiableListView` in
    `getCondSources`. The return type stays, so no caller changes. What
    the code read showed:
