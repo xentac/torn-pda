@@ -64,8 +64,8 @@ Last update: 2026-11-03 (tenth session).
   it. `replay-ready-b1` (eighth session) has the test userscripts and
   PDA's five example scripts. Use it for all B1 work, with
   `PDA_SNAPSHOT=replay-ready-b1`. Compare runs only within one snapshot.
-- All commits of the ninth session are on the fork. The tenth session
-  commits are not on the fork yet. Ask before each push.
+- All commits of the tenth session are on the fork (pushed on
+  2026-11-03 with the user's approval). Ask before each push.
 - The report is published as a shared artifact:
   https://claude.ai/artifact/GCojySixXsQJxfYYTqNxfK (version 13). The source is
   `report.md`.
@@ -383,7 +383,7 @@ table when a PR is opened, changed or closed.
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
 | GM handler crashes after renderer recovery (before this project) | none | `fix/gm-handler-reinject` | [#480](https://github.com/Manuito83/torn-pda/pull/480) | Merged on 2026-07-22. |
-| B1 1.7 part 1, end scripts together | `perf/end-scripts-together` (`79ca88ea`) | `end-scripts-together` (`a4113db9`, on `a2377dcc`) | none yet | Ready for the user to post. Draft text in `~/pda-recordings/pr-drafts/pr-end-scripts-together.md`. Not on the fork yet. |
+| B1 1.7 part 1, end scripts together | `perf/end-scripts-together` (`79ca88ea`) | `end-scripts-together` (`a4113db9`, on `a2377dcc`) | none yet | Ready for the user to post. Draft text in `~/pda-recordings/pr-drafts/pr-end-scripts-together.md`. Both branches are on the fork. |
 | B1 1.8, platform-ready wait | `perf/userscript-ready-ping` (`244141a6`) | `userscript-ready-ping` (`b49a6dd1`, on `a2377dcc`) | [#502](https://github.com/Manuito83/torn-pda/pull/502) | Open since 2026-11-03. Draft text in `~/pda-recordings/pr-drafts/pr-userscript-ready-ping.md`. |
 | A1 1.1, travel check counter | none (upstream did 1.1) | `travel-check-observer` (commit `b47209b0`, from local `travel-check-counter`) | [#501](https://github.com/Manuito83/torn-pda/pull/501) | Merged on 2026-11-02 as `9b690feb`. The maintainer then shortened its two comments (`34594b4c`). Keep comments in upstream branches to a few words. |
 
@@ -454,8 +454,7 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 
    Start of the eleventh session: fix 1.7, part 3 (item 3 above), with
    the same steps as fix 1.7, part 1 (see that section). First, ask the
-   user about the push of the tenth session branches and about the PR for
-   part 1. Part 3 changes only Dart work, so its success metric is
+   user about the PR for part 1. Part 3 changes only Dart work, so its success metric is
    `dart.cb.onLoadStop.wallMs`. With two test scripts, the gain can be too
    small to see. Look at the code first, and tell the user what the
    replay can show before you run it.
