@@ -396,7 +396,7 @@ table when a PR is opened, changed or closed.
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
 | GM handler crashes after renderer recovery (before this project) | none | `fix/gm-handler-reinject` | [#480](https://github.com/Manuito83/torn-pda/pull/480) | Merged on 2026-07-22. |
-| B1 1.7 part 3, cache the adapted source | `perf/cond-sources-list` | `cond-sources-cache` (commit `d7165545`, on `5ea591af`, pushed to the fork on 2026-11-03) | not opened yet | The user writes the PR from the draft. |
+| B1 1.7 part 3, cache the adapted source | `perf/cond-sources-list` | `cond-sources-cache` (commit `d7165545`, on `5ea591af`, pushed to the fork on 2026-11-03) | [#505](https://github.com/Manuito83/torn-pda/pull/505) | Open since 2026-11-03. |
 | B1 1.7 part 1, end scripts together | deleted | deleted | [#504](https://github.com/Manuito83/torn-pda/pull/504) | Merged on 2026-11-03 as `1edf12c5`, without comments or changes. |
 | B1 1.8, platform-ready wait | deleted | deleted | [#502](https://github.com/Manuito83/torn-pda/pull/502) | Merged on 2026-11-03 as `19912e5a`, without comments or changes. |
 | A1 1.1, travel check counter | none (upstream did 1.1) | `travel-check-observer` (commit `b47209b0`, from local `travel-check-counter`) | [#501](https://github.com/Manuito83/torn-pda/pull/501) | Merged on 2026-11-02 as `9b690feb`. The maintainer then shortened its two comments (`34594b4c`). Keep comments in upstream branches to a few words. |
@@ -469,21 +469,18 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 
    Start of the twelfth session. At the end of the eleventh session:
 
-   - `cond-sources-cache` (`d7165545`, on `develop` at `5ea591af`) is on
-     the fork. The user writes the PR from
-     `~/pda-recordings/pr-drafts/pr-cond-sources-cache.md`. Run the
-     `gh pr list` command in "State", and put the PR number in the
-     table in "Upstream pull requests".
-   - Not on the fork yet: the new commits of `perf/analysis` (the notes,
-     the report and this entry) and the branch `perf/cond-sources-list`
-     (the benchmark and the fix, on `perf/analysis`). Both need no force.
-     Ask the user before the push.
+   - `cond-sources-cache` (`d7165545`, on `develop` at `5ea591af`) is
+     PR #505, open since 2026-11-03. Run the `gh pr list` command in
+     "State" and update the table. Do not change the branch while the
+     PR is open, unless the maintainer asks for changes.
+   - `perf/analysis` and `perf/cond-sources-list` are on the fork
+     (pushed on 2026-11-03 with the user's approval).
    - Ask the user: republish the report artifact as version 14, with
      the corrected 1.7 part 3 and the section on the quote problem.
    - Ask the user: delete the local backup branches
      `perf/analysis-pre-19912e5a` and `perf/analysis-pre-1edf12c5`. Both
      rebases had no conflicts.
-   - After the PR is open, remove the upstream worktree in the old
+   - Remove the upstream worktree in the old
      scratchpad (`git worktree list`, then `git worktree remove
      --force`). It has untracked config stubs that git ignores. The
      scratchpad of a new session is a new folder, so make a new
