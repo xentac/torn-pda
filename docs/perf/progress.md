@@ -381,7 +381,7 @@ table when a PR is opened, changed or closed.
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
 | GM handler crashes after renderer recovery (before this project) | none | `fix/gm-handler-reinject` | [#480](https://github.com/Manuito83/torn-pda/pull/480) | Merged on 2026-07-22. |
-| B1 1.8, platform-ready wait | `perf/userscript-ready-ping` (`244141a6`) | `userscript-ready-ping` (`b49a6dd1`, on `a2377dcc`) | not posted | Draft in `~/pda-recordings/pr-drafts/pr-userscript-ready-ping.md`. Both branches are on the fork. The user opens the PR from `xentac:userscript-ready-ping` against `develop`. |
+| B1 1.8, platform-ready wait | `perf/userscript-ready-ping` (`244141a6`) | `userscript-ready-ping` (`b49a6dd1`, on `a2377dcc`) | [#502](https://github.com/Manuito83/torn-pda/pull/502) | Open since 2026-11-03. Draft text in `~/pda-recordings/pr-drafts/pr-userscript-ready-ping.md`. |
 | A1 1.1, travel check counter | none (upstream did 1.1) | `travel-check-observer` (commit `b47209b0`, from local `travel-check-counter`) | [#501](https://github.com/Manuito83/torn-pda/pull/501) | Merged on 2026-11-02 as `9b690feb`. The maintainer then shortened its two comments (`34594b4c`). Keep comments in upstream branches to a few words. |
 
 To see the state of all PRs:
@@ -435,7 +435,7 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 
    Open B1 items, in order of user impact:
 
-   1. Finding 1.8: done in the ninth session, PR not posted yet. See
+   1. Finding 1.8: done in the ninth session, PR #502. See
       "Fix 1.8: the platform-ready wait".
    2. Finding 1.7, part 1: the document-end scripts run one
       `evaluateJavascript` at a time in `onLoadStop`. Run them in one call.
@@ -449,8 +449,7 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    Step 1, the measurement setup, is done (eighth session). See "The B1
    baseline".
 
-   Start of the tenth session: ask the user whether the fix 1.8 PR is
-   posted, and update "Upstream pull requests". Then fix 1.7, part 1
+   Start of the tenth session: fix 1.7, part 1
    (item 2 above), with the same steps as fix 1.8:
 
    1. Look at `origin/develop` for the same change.
