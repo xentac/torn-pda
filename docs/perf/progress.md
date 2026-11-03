@@ -396,6 +396,7 @@ table when a PR is opened, changed or closed.
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
 | GM handler crashes after renderer recovery (before this project) | none | `fix/gm-handler-reinject` | [#480](https://github.com/Manuito83/torn-pda/pull/480) | Merged on 2026-07-22. |
+| B1 1.7 part 3, cache the adapted source | `perf/cond-sources-list` | `cond-sources-cache` (commit `d7165545`, on `5ea591af`, pushed to the fork on 2026-11-03) | not opened yet | The user writes the PR from the draft. |
 | B1 1.7 part 1, end scripts together | deleted | deleted | [#504](https://github.com/Manuito83/torn-pda/pull/504) | Merged on 2026-11-03 as `1edf12c5`, without comments or changes. |
 | B1 1.8, platform-ready wait | deleted | deleted | [#502](https://github.com/Manuito83/torn-pda/pull/502) | Merged on 2026-11-03 as `19912e5a`, without comments or changes. |
 | A1 1.1, travel check counter | none (upstream did 1.1) | `travel-check-observer` (commit `b47209b0`, from local `travel-check-counter`) | [#501](https://github.com/Manuito83/torn-pda/pull/501) | Merged on 2026-11-02 as `9b690feb`. The maintainer then shortened its two comments (`34594b4c`). Keep comments in upstream branches to a few words. |
@@ -593,6 +594,11 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    draft is `~/pda-recordings/pr-drafts/pr-cond-sources-cache.md`.
    The upstream branch passes `flutter analyze` and `test/models` on
    its own, with the `.example` stubs placed as `docs/README.md` says.
+   Later, `develop` moved to `5ea591af` (three commits, one in
+   `userscripts_provider.dart`, only the handler scripts). The branch
+   was rebased with no conflicts, to `d7165545`, and analyze and the
+   91 model tests passed again. The check runs were not repeated,
+   because the new commits do not touch the fixed code.
 
    The risk of a script change during `onLoadStop`: since part 1, the
    end scripts go to `Future.wait`, which reads the list at once, with
