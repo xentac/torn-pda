@@ -621,8 +621,13 @@ Other results:
   and the page share the one replay proxy, which is only a cost of the
   test. The first try did not show the delay. Name it in the PR.
 - On the attack page, `onLoadStop` is 54 % shorter (p 0.010).
-- Not tested: the first page of a new tab. The replay flow opens no new
-  tab. The PR test plan asks for it on a phone.
+- Not tested in the replay: the first page of a new tab. The replay flow
+  opens no new tab. The PR test plan asks for it on a phone.
+- The user tested `244141a6` live on the emulator (`live-ready`, with a
+  plain `mitmdump` that records nothing). FF Scouter V2 works and pages
+  load quickly. FF Scouter V2 runs at `document-start` and uses
+  `GM_xmlhttpRequest`, which calls `PDA_httpGet`, so it gets the gain. It
+  caches estimates for one hour, so only new players show the change.
 
 ### The B1 baseline
 
