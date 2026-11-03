@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-02 (end of the eighth session).
+Last update: 2026-11-03 (end of the ninth session).
 
 ## State
 
@@ -55,6 +55,9 @@ Last update: 2026-11-02 (end of the eighth session).
   - `53fad5c1`: `perf/analysis` on `develop` at `a2377dcc`, with the probe
     that records the test userscripts. It is the B1 base. Built in the
     eighth session.
+  - `244141a6`: fix 1.8 (`perf/userscript-ready-ping`). Ninth session.
+  - `57955d23`: the first try of fix 1.8, which did not work. Only for
+    the record in "Fix 1.8: the platform-ready wait".
 - Emulator snapshots for replay: `replay-ready` is the A1 snapshot. Keep
   it. `replay-ready-b1` (eighth session) has the test userscripts and
   PDA's five example scripts. Use it for all B1 work, with
@@ -378,6 +381,7 @@ table when a PR is opened, changed or closed.
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
 | GM handler crashes after renderer recovery (before this project) | none | `fix/gm-handler-reinject` | [#480](https://github.com/Manuito83/torn-pda/pull/480) | Merged on 2026-07-22. |
+| B1 1.8, platform-ready wait | `perf/userscript-ready-ping` (`244141a6`) | `userscript-ready-ping` (`b49a6dd1`, on `a2377dcc`) | not posted | Draft in `~/pda-recordings/pr-drafts/pr-userscript-ready-ping.md`. The branches are local only. Ask before the push to the fork. |
 | A1 1.1, travel check counter | none (upstream did 1.1) | `travel-check-observer` (commit `b47209b0`, from local `travel-check-counter`) | [#501](https://github.com/Manuito83/torn-pda/pull/501) | Merged on 2026-11-02 as `9b690feb`. The maintainer then shortened its two comments (`34594b4c`). Keep comments in upstream branches to a few words. |
 
 To see the state of all PRs:
@@ -431,11 +435,8 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 
    Open B1 items, in order of user impact:
 
-   1. Finding 1.8: `PDA_http*`, `PDA_storage` and `PDA_evaluateJavascript`
-      wait for `__PDA_platformReadyPromise`, which resolves only after the
-      page `load`. This change touches WebView behavior. The maintainer
-      wants an iOS and beta-tester test plan for such changes. Write the
-      plan into the PR text.
+   1. Finding 1.8: done in the ninth session, PR not posted yet. See
+      "Fix 1.8: the platform-ready wait".
    2. Finding 1.7, part 1: the document-end scripts run one
       `evaluateJavascript` at a time in `onLoadStop`. Run them in one call.
    3. Finding 1.7, part 3: `getCondSources` returns an
@@ -448,31 +449,28 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    Step 1, the measurement setup, is done (eighth session). See "The B1
    baseline".
 
-   Start of the ninth session: fix 1.8. Read "The B1 baseline" first.
-   Then do these steps:
+   Start of the tenth session: ask the user whether the fix 1.8 PR is
+   posted, and update "Upstream pull requests". Then fix 1.7, part 1
+   (item 2 above), with the same steps as fix 1.8:
 
    1. Look at `origin/develop` for the same change.
-   2. Read how `__PDA_platformReadyPromise` is made
-      (`handler_flutterPlatformReady` in `js_handlers.dart`,
-      `_pdaApiBaseJS` in `remote_snippets.dart`) and when
-      flutter_inappwebview fires `flutterInAppWebViewPlatformReady` on
-      Android and iOS. Find out whether the handlers can be called
-      before that event, and propose the fix to the user before you
-      write it.
+   2. Read how `onLoadStop` injects the document-end scripts, and
+      propose the fix to the user before you write it.
    3. Commit the fix on a branch from `perf/analysis`, build its APK,
       and run 8 runs of `53fad5c1.apk` and the new APK, alternated, on
-      `replay-ready-b1`.
+      `replay-ready-b1`. Before the 16 runs, do 2 runs of the new APK
+      only, and look at the probe fields. In the ninth session, this
+      check would have found the failed first try 25 minutes earlier.
    4. Compare them with `summarize.py --compare` and
-      `--metric probe.us.start.waitMs --metric probe.us.start.rttMs`.
+      `--metric probe.us.endAll.afterLoad --metric probe.us.endGapMs`.
+      The spread of `us.endGapMs` is large, so 16 runs of each build can
+      be necessary.
    5. Make the upstream branch from `origin/develop` (only the fix,
       short comments), and write a PR draft with the numbers and an iOS
-      and beta-tester test plan in the scratchpad.
+      and beta-tester test plan into `~/pda-recordings/pr-drafts/`.
 
-   The success metrics of fix 1.8 are `probe.us.start.waitMs` and
-   `probe.us.start.rttMs` (give them to `summarize.py --metric`). For
-   fix 1.7, part 1, use `probe.us.endAll.afterLoad` and
-   `probe.us.endGapMs`. Write the iOS and beta-tester test plan into
-   the PR text.
+   Fix 1.7, part 1 is measured against `53fad5c1`, without fix 1.8, so
+   that the comparison shows one fix.
 
    Then one branch for each fix, as in item 1. The user writes and posts
    each PR.
@@ -564,6 +562,61 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 4. 16 runs for the profile and faction pages, where the `nav.load` spread is
    over 10 %.
 5. Find why one crimes run went back to the blank page (see the lessons).
+
+### Fix 1.8: the platform-ready wait
+
+Done on 2026-11-03 (ninth session). `origin/develop` had no such change.
+
+Why the wait exists: Dart registers the handlers once per WebView, in
+`onWebViewCreated`, after it awaits `clearAllCache` and the script setup.
+The first page of a tab can run its document-start scripts before that.
+A call to a handler that is not registered gets `null` back without an
+error (`in_app_webview_controller.dart` in the Android plugin falls
+through `_javaScriptHandlersMap.containsKey`). If the native channel is
+not ready, the call never settles. After the first page, the handlers
+always exist. The plugin event comes only in `onPageFinished` (Android)
+or `didFinish` (iOS). iOS never sets `_platformReady`.
+
+The fix: a handler `PDA_handlersReady`, registered last in
+`addScriptApiHandlers`, returns `true`. The promise in
+`handler_flutterPlatformReady` asks it, and resolves on `true` or on the
+old event, whichever comes first. The copy in `_pdaApiBaseJS` is the
+same, and its version is not changed. The `__TornPDA_ReadyEvent__` script
+runs first and Remote Config cannot replace it, so the fix holds with an
+older RC override. Only `webview_full.dart` registers the script
+handlers, so other WebViews do not change. Document-end scripts run in
+`onLoadStop`, after the event, so they do not change.
+
+A lesson: the first try (`57955d23`) asked once at document start, and
+16 runs showed no change. The bridge's `callHandler` does not exist yet
+when PDA's document-start scripts run. It appears some 20 to 30 ms
+later (the probe polls for it for the same reason). The try/catch hid
+the error. The fix now retries every 10 ms, 100 times at most.
+
+The run: 8 runs of `53fad5c1` and `244141a6`, alternated, on
+`replay-ready-b1`. All 16 passed. The summaries are in
+`~/pda-recordings/baselines/fix18-244141a6/` (`old/` and `new/`). The
+runs of the first try are in `~/pda-recordings/baselines/fix18/`.
+
+Medians in ms (p < 0.001 for all):
+
+| Page | `us.start.waitMs` | `us.start.rttMs` |
+|---|---|---|
+| `profiles.php?XID=N` | 803 to 42 | 1012 to 180 |
+| `page.php?sid=attack` | 647 to 60 | 699 to 92 |
+| `page.php?sid=attackLog` | 515 to 79 | 612 to 142 |
+
+Other results:
+
+- All 27 start-script answers have status 200.
+- `nav.load` did not change.
+- On the profile page, `nav.dcl` (+48 ms, +4.7 %), `domInteractive`
+  (+4.6 %) and `paint.lcp` (+4.9 %) are later, with p < 0.02. The answer
+  and its bridge work now come while the page loads. The first try did
+  not show this, so it comes from the earlier answer. Name it in the PR.
+- On the attack page, `onLoadStop` is 41 % shorter (p 0.035).
+- Not tested: the first page of a new tab. The replay flow opens no new
+  tab. The PR test plan asks for it on a phone.
 
 ### The B1 baseline
 
