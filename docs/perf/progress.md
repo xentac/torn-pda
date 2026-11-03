@@ -524,6 +524,33 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    before the navigation policy returns. The cache is a proposal to
    the user, not yet approved.
 
+   The user's own export (`~/Downloads/userscripts_export.json`, not
+   in git, it holds API keys): 73 scripts, 44 enabled, 4.6 MB of
+   enabled source. The largest enabled script is FF Scouter V2 - DEV
+   (397 KB, document start, every Torn page). The user also has two
+   disabled copies of FF Scouter V2 of the same size. With
+   `PDA_BENCH_SCRIPTS` set to the export, the medians per page load
+   on the host were 16 to 31 ms on the current code. They were 0.26 to
+   0.78 ms with the cache (two runs each):
+
+   | Page | Scripts on it | Current | Cached |
+   |---|---|---|---|
+   | `index.php` | 6, 684 KB | 20.0, 20.7 ms | 0.50, 0.27 ms |
+   | `profiles.php` | 6, 919 KB | 29.1, 28.7 ms | 0.78, 0.52 ms |
+   | `loader.php?sid=attack` | 4, 441 KB | 15.6, 15.6 ms | 0.37, 0.26 ms |
+   | `page.php?sid=crimes` | 10, 1096 KB | 31.1, 30.8 ms | 0.78, 0.56 ms |
+   | `page.php?sid=ItemMarket` | 9, 1180 KB | 30.0, 31.1 ms | 0.71, 0.59 ms |
+   | `factions.php` | 10, 1084 KB | 21.8, 21.5 ms | 0.46, 0.39 ms |
+   | `item.php` | 9, 1061 KB | 21.8, 21.4 ms | 0.39, 0.40 ms |
+
+   The risk of a script change during `onLoadStop`: since part 1, the
+   end scripts go to `Future.wait`, which reads the list at once, with
+   no await between the steps. The other reads have no await inside
+   them either. Only the debug loops (off, `_debugScriptsInjection`)
+   read the list after an await. So the `ConcurrentModificationError`
+   cannot happen now, and nothing in the chain throws in practice. The
+   `.toList()` is only hygiene. Tell the user this before the PR.
+
    The first proposal to the user (before the benchmark): `develop` at `19912e5a` still has the lazy chain. The fix
    is a `.toList()` inside the `UnmodifiableListView` in
    `getCondSources`. The return type stays, so no caller changes. What
