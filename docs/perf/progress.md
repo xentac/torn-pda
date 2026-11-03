@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-03 (eleventh session).
+Last update: 2026-11-03 (end of the eleventh session).
 
 ## State
 
@@ -456,15 +456,60 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
       "Fix 1.8: the platform-ready wait".
    2. Finding 1.7, part 1: done in the tenth session. See
       "Fix 1.7, part 1: the end scripts together".
-   3. Finding 1.7, part 3: `getCondSources` returns an
-      `UnmodifiableListView` over a lazy `where` and `map`, so each access
-      runs the chain again. Return a real list.
+   3. Finding 1.7, part 3: done in the eleventh session. The cache of
+      the adapted source and the real list are on the fork as
+      `cond-sources-cache`. See the entry "Fix 1.7, part 3, eleventh
+      session" below.
    4. Finding 1.7, part 4: a document-start script of the previous page
       stays registered on the next page. Make sure that this is still true
       on `develop` before you fix it.
 
    Step 1, the measurement setup, is done (eighth session). See "The B1
    baseline".
+
+   Start of the twelfth session. At the end of the eleventh session:
+
+   - `cond-sources-cache` (`d7165545`, on `develop` at `5ea591af`) is on
+     the fork. The user writes the PR from
+     `~/pda-recordings/pr-drafts/pr-cond-sources-cache.md`. Run the
+     `gh pr list` command in "State", and put the PR number in the
+     table in "Upstream pull requests".
+   - Not on the fork yet: the new commits of `perf/analysis` (the notes,
+     the report and this entry) and the branch `perf/cond-sources-list`
+     (the benchmark and the fix, on `perf/analysis`). Both need no force.
+     Ask the user before the push.
+   - Ask the user: republish the report artifact as version 14, with
+     the corrected 1.7 part 3 and the section on the quote problem.
+   - Ask the user: delete the local backup branches
+     `perf/analysis-pre-19912e5a` and `perf/analysis-pre-1edf12c5`. Both
+     rebases had no conflicts.
+   - After the PR is open, remove the upstream worktree in the old
+     scratchpad (`git worktree list`, then `git worktree remove
+     --force`). It has untracked config stubs that git ignores. The
+     scratchpad of a new session is a new folder, so make a new
+     worktree for the next upstream branch.
+   - `perf/analysis` is on `develop` at `1edf12c5`. `develop` is now at
+     `5ea591af`. If more commits came, rebase `perf/analysis` (keep a
+     local copy first), build the base APK, and run 2 check runs on
+     `replay-ready-b1`, as in the eleventh session. Then rebase
+     `perf/cond-sources-list` on it.
+   - The next fix is 1.7, part 4 (item 4 above). First make sure that a
+     document-start script of the previous page still stays registered
+     on `develop`. Read the code (`_registeredScriptGroups`,
+     `_addUserScriptsAvoidDuplicates`, `shouldOverrideUrlLoading` in
+     `webview_full.dart`), and tell the user what you find before you
+     propose a fix.
+   - Run flutter in the nix shell: `nix develop
+     /home/xentac/coding/infra/nixos-config#torn-pda -c sh -c 'flutter
+     ...'`. The git remotes are `origin` (upstream, never push) and
+     `xentac` (the fork).
+   - A cache question from the user, answered: the cache compares the
+     key on every read, and the source by identity (`identical`, a
+     pointer check). So a new PDA key, a new custom key, or a new
+     source rebuilds the copy. A copy is never stale. An equal source
+     in a new string object only costs one more adapt. A page that is
+     already open keeps its scripts until the next load, as before the
+     PR.
 
    Done in the eleventh session: steps 1 to 4 below. The rebase had no
    conflicts. `perf/end-scripts-together` is one commit again
