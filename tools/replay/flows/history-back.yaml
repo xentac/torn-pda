@@ -1,0 +1,29 @@
+# Opens a profile, goes to the attack page, and swipes back on PDA's bar.
+# The swipe goes through PDA's own history (_loadUrl), also with the tab mode
+# off, so this checks the path that removes stale start scripts before a load.
+# Use the snapshot replay-ready-b1-notabs, which has the narrow start scripts
+# (add-start-narrow.yaml). The recording is anon/attack.mitm.
+appId: com.manuito.tornpda
+---
+- runFlow: dismiss-tips.yaml
+- openLink: "https://www.torn.com/profiles.php?XID=8810916"
+- extendedWaitUntil:
+    visible:
+      id: "button0-profile-8810916"
+    timeout: 60000
+- tapOn:
+    id: "button0-profile-8810916"
+- extendedWaitUntil:
+    visible: "Start fight"
+    timeout: 30000
+- takeScreenshot: attack
+# Left to right on the bar is "back" unless the user reversed the swipe.
+- swipe:
+    start: "25%,9%"
+    end: "75%,9%"
+    duration: 300
+- extendedWaitUntil:
+    visible:
+      id: "button0-profile-8810916"
+    timeout: 60000
+- takeScreenshot: profile-back
