@@ -563,6 +563,17 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    A version with no copy at all is possible: keep the offsets of the
    placeholders and quotes, and build the result from them.
 
+   The curly quote replacement in `adaptSource` has no comment and no
+   documentation. It came in `d9be50ba` (2023-01-18, "Fixed
+   userscripts injection on iOS when windowId has been defined") for
+   `“` and `”`. `ea0b2238` (2025-09-07) added `‘` and `’`. The test
+   `normalizes smart quotes before injection` in
+   `test/models/userscript_model_test.dart` covers it. It changes
+   every such quote in the whole source, also inside strings. So a
+   `’` inside a single-quoted string (`'Don’t'`) becomes a syntax
+   error. A possible later report item, not a performance one. The
+   cache must keep the replacement as it is.
+
    The risk of a script change during `onLoadStop`: since part 1, the
    end scripts go to `Future.wait`, which reads the list at once, with
    no await between the steps. The other reads have no await inside
