@@ -23,7 +23,7 @@ Last update: 2026-11-03 (end of the eleventh session).
 - Branch `perf/analysis`, based on `origin/develop` at `1edf12c5` (the
   merge of #504) since the eleventh session. Both rebases of that
   session had no conflicts. The branches before them are the local
-  `perf/analysis-pre-19912e5a` and `perf/analysis-pre-1edf12c5`. The
+  `perf/analysis-pre-19912e5a` and `perf/analysis-pre-1edf12c5` (deleted at the end of the session, with the user's approval). The
   fork has the rebased branch (force push with the user's approval,
   2026-11-03). The user also had all merged branches deleted on the
   fork: it now has only `master` and `perf/analysis`. Before that, it
@@ -80,7 +80,7 @@ Last update: 2026-11-03 (end of the eleventh session).
 - All commits of the tenth session are on the fork (pushed on
   2026-11-03 with the user's approval). Ask before each push.
 - The report is published as a shared artifact:
-  https://claude.ai/artifact/GCojySixXsQJxfYYTqNxfK (version 13). The source is
+  https://claude.ai/artifact/GCojySixXsQJxfYYTqNxfK (version 14, 2026-11-03, with the corrected 1.7 part 3 and the quote section). The A1 items that upstream did are not marked in it yet. The source is
   `report.md`.
 - Track T (record and replay) works from start to finish on the emulator:
   capture, anonymize, snapshot, automated test run. Three flows pass:
@@ -475,11 +475,10 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
      PR is open, unless the maintainer asks for changes.
    - `perf/analysis` and `perf/cond-sources-list` are on the fork
      (pushed on 2026-11-03 with the user's approval).
-   - Ask the user: republish the report artifact as version 14, with
-     the corrected 1.7 part 3 and the section on the quote problem.
-   - Ask the user: delete the local backup branches
-     `perf/analysis-pre-19912e5a` and `perf/analysis-pre-1edf12c5`. Both
-     rebases had no conflicts.
+   - Done: the report artifact is version 14. The user had the four
+     local `perf/analysis-pre-*` backup branches deleted. Keep
+     `perf/analysis-backup` (see "State"). Before the next rebase, make a
+     new local copy, and delete it after the check runs pass.
    - Remove the upstream worktree in the old
      scratchpad (`git worktree list`, then `git worktree remove
      --force`). It has untracked config stubs that git ignores. The
@@ -628,7 +627,7 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    (passed). Medians with the user's export, after the fix: 0.56 to
    1.9 ms per page load (two runs). `report.md` now has the corrected
    part 3 and a section on the quote problem (with a Node test). The
-   artifact is not republished yet. The fix APK is `1239f828`. Its 2
+   artifact is version 14 now. The fix APK is `1239f828`. Its 2
    check runs on `replay-ready-b1` passed (`20261103T193615Z`,
    `20261103T193755Z`), with 51 and 48 misses, 5 and 4 of them
    `attackData`. All test scripts ran on the three pages, the start
