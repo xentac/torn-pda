@@ -521,7 +521,7 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 
    1. PR A, the `@match` semantics (issue #314, closed 2026-04-30 by
       `9b104324`, but not complete). Branch `perf/match-semantics`
-      (`0ead1112`): the `#hash` is not part of the match (as in
+      (`29014052`): the `#hash` is not part of the match (as in
       Tampermonkey), `http*://` is the same as `*://`, and a host
       without a port matches any port. 4 new tests, 93 model tests
       pass. Not done, a later report item: `@exclude`,
@@ -548,6 +548,70 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    records). The check runs of `cd6ed330` printed 20 and 19 (54 and
    about 48 lines). The last run of `1239f828` had 16 (48 lines). The
    URLs are the same.
+
+   Option 1, measured (twelfth session). The user wants document-start
+   scripts at document start on every navigation, so "register all
+   start scripts once" was measured against the guard alone. The
+   branches, all local, on `perf/analysis` at `a2bc5867`:
+
+   - `perf/match-semantics` `29014052` (PR A, rebased from `0ead1112`).
+   - `perf/start-guard` `cbfa3236` (PR B on A): `_guardedOnce` puts
+     `UserScriptModel.matchGuardJs` into the once-per-document
+     condition. If the list has `*`, `matchGuardJs` is null. A Node
+     test (`test/models/userscript_guard_test.dart`) compares it with
+     `matchesTarget` on 15 lists and 25 URLs, and on the user's export
+     with `PDA_BENCH_SCRIPTS=<export>`. It passes. Torn's CSP has no
+     `'unsafe-eval'`, so the guard is plain code in the source, not a
+     string for `eval`.
+   - `perf/start-register-all` `ab0accf5` (measurement only, on B):
+     At the webview creation, `_registerAllStart` registers every
+     enabled start source once. `_removeStaleUserScripts` does nothing.
+
+   The APKs are `~/pda-recordings/apks/cbfa3236.apk` and `ab0accf5.apk`.
+   The two snapshots come from `replay-ready-b1`, with the preferences
+   file changed by the scratchpad tool `add_scripts.py` (a new
+   `pda_userScriptsList` record, `PDA_B64:` plus base64 JSON, the last
+   record wins). The manual way is PDA's own script import. The
+   export has API keys, so the tool removes the custom keys and the
+   update URLs, and nothing of it goes into git:
+
+   - `replay-ready-b1-user`: plus the user's 9 enabled start scripts
+     (768 KB).
+   - `replay-ready-b1-stress`: the user snapshot, plus the 35 enabled
+     end scripts (3.9 MB) as start scripts with `@match
+     https://pda-replay.invalid/never/*`. It shows the cost of all end
+     scripts as start scripts (for example with `DOMContentLoaded`).
+
+   8 and 8 alternated runs of the attack flow on each snapshot, all
+   passed (user: `20261103T224829Z` to `20261103T232450Z`, stress: to
+   `20261103T235601Z`). Old is the guard, new is register-all. Medians:
+
+   - User snapshot. `shouldOverrideUrlLoading` before a navigation:
+     177 to 1.5 ms (attack), 200 to 1.5 ms (attack log). Tap to
+     navigation start: 185 to 12 ms. Tap to DOMContentLoaded: 1104 to
+     928 ms (-16 %), 1630 to 1416 ms (-13 %). `nav.dcl`, `nav.load`
+     and `us.start.start` (from the navigation start) do not change
+     (p > 0.3). So 768 KB of start scripts on every page costs
+     nothing that the runs can see.
+   - Stress snapshot. `shouldOverrideUrlLoading`: 114 to 1 ms and 130
+     to 0.8 ms. Tap to DOMContentLoaded on the attack page: 978 to
+     839 ms (-14 %). But the parse costs show: `nav.dcl` on the attack
+     log 1205 to 1305 ms (+8 %, p 0.03), `bridge.firstAt` +30 ms
+     (attack), +85 ms (attack log), +124 ms (profile), the longest
+     long task 77 to 140 ms (attack log) and 92 to 207 ms (profile),
+     and `us.start.waitMs` +21 to +85 ms. The tap to TTFB is still
+     115 to 130 ms shorter. The Dart UI max frame goes from 33 to
+     95 ms once a run (the registration of 4.6 MB at the webview
+     creation).
+
+   The result: the cost of `_removeStaleUserScripts` and the new
+   registration on each tap (115 to 200 ms on the UI thread) is larger
+   than the parse cost of the user's own start scripts. Register-all
+   with the guard is faster for this user, and starts every start
+   script at document start on every navigation type. With 4.6 MB of
+   start scripts, the page work grows by about 100 ms. The tap to
+   DOMContentLoaded is then still shorter on the attack page, and
+   about the same on the others.
 
    Start of the twelfth session. At the end of the eleventh session:
 
