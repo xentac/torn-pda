@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-03 (end of the eleventh session).
+Last update: 2026-11-03 (twelfth session).
 
 ## State
 
@@ -20,7 +20,10 @@ Last update: 2026-11-03 (end of the eleventh session).
   (`listen: false`, 500 entries at most) and the show-case timer. PR #501
   had only a counter on top of their travel check, and was merged on
   2026-11-02. See "Next steps".
-- Branch `perf/analysis`, based on `origin/develop` at `1edf12c5` (the
+- Branch `perf/analysis`, based on `origin/develop` at `5ea591af` since
+  the twelfth session. The rebase had no conflicts, and the local copy
+  before it (`perf/analysis-pre-5ea591af`) was deleted after the check
+  runs passed. Before that, it was based on `1edf12c5` (the
   merge of #504) since the eleventh session. Both rebases of that
   session had no conflicts. The branches before them are the local
   `perf/analysis-pre-19912e5a` and `perf/analysis-pre-1edf12c5` (deleted at the end of the session, with the user's approval). The
@@ -71,6 +74,9 @@ Last update: 2026-11-03 (end of the eleventh session).
   - `31711aab`: `perf/analysis` on `develop` at `1edf12c5`. It has
     fixes 1.8 and 1.7 part 1. It is the B1 base in place of `96f83dde`.
     Eleventh session.
+  - `cd6ed330`: `perf/analysis` on `develop` at `5ea591af`. The B1 base
+    in place of `31711aab`. Twelfth session. Its 2 check runs on
+    `replay-ready-b1` passed (`20261103T212007Z`, `20261103T212213Z`).
   - `57955d23`: the first try of fix 1.8, which did not work. Only for
     the record in "Fix 1.8: the platform-ready wait".
 - Emulator snapshots for replay: `replay-ready` is the A1 snapshot. Keep
@@ -460,12 +466,50 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
       the adapted source and the real list are on the fork as
       `cond-sources-cache`. See the entry "Fix 1.7, part 3, eleventh
       session" below.
-   4. Finding 1.7, part 4: a document-start script of the previous page
-      stays registered on the next page. Make sure that this is still true
-      on `develop` before you fix it.
+   4. Finding 1.7, part 4: mostly done upstream in `610af44f`. The rest
+      is in progress (twelfth session). See "Fix 1.7, part 4, twelfth
+      session" below.
 
    Step 1, the measurement setup, is done (eighth session). See "The B1
    baseline".
+
+   Fix 1.7, part 4, twelfth session. `develop` at `5ea591af` already
+   removes the stale start scripts before each navigation that the app
+   sees: `_removeStaleUserScripts` runs in `shouldOverrideUrlLoading`
+   and in `_loadUrl` (added in `610af44f`). The tab mode is on by
+   default, and its back and forward go through `loadFromExterior` and
+   `_loadUrl`. So the report text of part 4 is out of date for the
+   usual case. Correct it in `report.md`. The cases that remain, all on
+   Android, found by reading the code:
+
+   - A native `goBack()` or `goForward()`: the back button while a
+     trade goes to the vault (`_backButtonPopsContext` false), and the
+     swipe when the tab mode is off. Android does not call
+     `shouldOverrideUrlLoading` for history navigation.
+   - Navigations that the page starts and that Android does not report
+     (a form POST, `history.back()` in page JavaScript). Only the track
+     B dispatcher fixes these.
+
+   In these cases, the start script of the old page runs once on the
+   new page, and the target's start scripts come late, from the probe
+   in `onLoadStop`. `onLoadStop` then removes the stale groups, so the
+   cost is one wrong page for each event. iOS is not affected, because
+   WKWebView asks the navigation policy for back and forward too. The
+   park path returns to the same page, so it is not affected.
+
+   The user chose the small fix: `_prepareScriptsForHistoryStep` reads
+   the target from `getCopyBackForwardList()` and runs the stale
+   removal and the add, as `_loadUrl` does, before the three native
+   history calls. Android only. Measurement branch:
+   `perf/history-step-scripts` (`c882f865`). It passes `flutter
+   analyze`. No emulator test and no upstream branch yet.
+
+   A correction to the miss counts in the notes: `run-test.sh` prints
+   only the records of kind `miss`. The counts of 47 to 54 above are
+   all lines of `misses.jsonl` (with the websocket, `state` and `loose`
+   records). The check runs of `cd6ed330` printed 20 and 19 (54 and
+   about 48 lines). The last run of `1239f828` had 16 (48 lines). The
+   URLs are the same.
 
    Start of the twelfth session. At the end of the eleventh session:
 
