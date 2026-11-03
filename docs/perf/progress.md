@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-03 (end of the tenth session).
+Last update: 2026-11-03 (eleventh session).
 
 ## State
 
@@ -20,7 +20,12 @@ Last update: 2026-11-03 (end of the tenth session).
   (`listen: false`, 500 entries at most) and the show-case timer. PR #501
   had only a counter on top of their travel check, and was merged on
   2026-11-02. See "Next steps".
-- Branch `perf/analysis`, based on `origin/develop` at `a2377dcc` since the
+- Branch `perf/analysis`, based on `origin/develop` at `19912e5a` (the
+  merge of #502) since the eleventh session. That rebase had no
+  conflicts. The branch before it is the local
+  `perf/analysis-pre-19912e5a`. The fork does not have the new rebase
+  yet: a force push needs the user's approval. Before that, it was based
+  on `a2377dcc` since the
   eighth session. The rebase had no conflicts. The new `develop` has only
   `c27e9e54` (the changelog pauses its animation under the browser) and a
   TornTools catalog update. The branch before this rebase is the local
@@ -57,6 +62,9 @@ Last update: 2026-11-03 (end of the tenth session).
     eighth session.
   - `244141a6`: fix 1.8 (`perf/userscript-ready-ping`). Ninth session.
   - `79ca88ea`: fix 1.7, part 1 (`perf/end-scripts-together`). Tenth
+    session.
+  - `96f83dde`: `perf/analysis` on `develop` at `19912e5a`. It has fix
+    1.8. It is the new B1 base, in place of `53fad5c1`. Eleventh
     session.
   - `57955d23`: the first try of fix 1.8, which did not work. Only for
     the record in "Fix 1.8: the platform-ready wait".
@@ -452,6 +460,17 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    Step 1, the measurement setup, is done (eighth session). See "The B1
    baseline".
 
+   Done in the eleventh session: steps 1 to 4 below. The rebase had no
+   conflicts. `perf/end-scripts-together` is one commit again
+   (`49511c4e`). The local fix 1.8 branches are deleted. On the fork,
+   `perf/userscript-ready-ping` and `userscript-ready-ping` still exist,
+   and `perf/analysis` is the old one, until the user approves. The 2
+   check runs of `96f83dde` passed (`20261103T171412Z`,
+   `20261103T171556Z`). The chat change added no new kind of miss. Each
+   run had 52 misses, and 7 of them were `attackData` polls. In the 16
+   runs of fix 1.7, part 1, the totals were 47 to 54, and the
+   `attackData` misses were 3 to 7.
+
    Start of the eleventh session: #502 is merged (`19912e5a`), and
    `develop` also has `b0361eda` (a large chat change, 15 files). So
    first:
@@ -470,6 +489,31 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
       flow or the misses. If a run fails, find why before you go on.
       This APK is the new base for B1 fixes, in place of `53fad5c1`,
       because it has fix 1.8.
+
+   Fix 1.7, part 3, proposed to the user (eleventh session), not yet
+   written. `develop` at `19912e5a` still has the lazy chain. The fix
+   is a `.toList()` inside the `UnmodifiableListView` in
+   `getCondSources`. The return type stays, so no caller changes. What
+   the code read showed:
+
+   - The `try/catch` in `getCondSources` catches nothing today, because
+     the `where` and `map` run at the call site.
+   - The SDK `ListIterator` reads `length` at each step, which runs the
+     filter again. The end-script loop in `onLoadStop` awaits between
+     steps. If the number of matches changes during an await, it throws
+     `ConcurrentModificationError`. The loop is in the `try` that ends
+     at `webview_full.dart:2068`, so the error skips the rest of that
+     block.
+   - Each read makes new `UserScript` objects.
+   - Speed: a Dart count of one loop gave 39 `matchesTarget` calls in
+     place of 9 (9 scripts, 2 matches), and 206 in place of 40 (40
+     scripts, 3 matches). `adaptSource` runs once per script in each
+     pass. So "quadratic" and "on each access" in `report.md` are
+     wrong. Correct them. The gain is microseconds, which the replay
+     cannot show.
+   - Proposed measurement: 2 check runs for no regression, the call
+     counts as PR evidence, `flutter analyze` and `test/models`. The
+     `RegExp` objects in `adaptSource` are a separate, later PR.
 
    Then fix 1.7, part 3 (item 3 above), with the same steps as fix 1.7,
    part 1 (see that section). Part 3 changes only Dart work, so its
