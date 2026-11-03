@@ -1,0 +1,18 @@
+# Adds the narrow start test scripts (perf-start-profile, perf-start-page) on the userscripts page.
+# Used to build the replay-ready-b1-notabs snapshot (see docs/perf/progress.md, fix 1.7 part 4).
+appId: com.manuito.tornpda
+---
+- tapOn:
+    text: "Yes, I promise!"
+    optional: true
+- runFlow:
+    file: add-userscript.yaml
+    env:
+      URL: https://pda-replay.invalid/userscripts/perf-start-profile.user.js
+      NAME: PDA Perf Test Start Profile
+- runFlow:
+    file: add-userscript.yaml
+    env:
+      URL: https://pda-replay.invalid/userscripts/perf-start-page.user.js
+      NAME: PDA Perf Test Start Page
+- back
