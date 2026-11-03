@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-03 (tenth session).
+Last update: 2026-11-03 (end of the tenth session).
 
 ## State
 
@@ -383,8 +383,8 @@ table when a PR is opened, changed or closed.
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
 | GM handler crashes after renderer recovery (before this project) | none | `fix/gm-handler-reinject` | [#480](https://github.com/Manuito83/torn-pda/pull/480) | Merged on 2026-07-22. |
-| B1 1.7 part 1, end scripts together | `perf/end-scripts-together` (`79ca88ea`) | `end-scripts-together` (`a4113db9`, on `a2377dcc`) | none yet | Ready for the user to post. Draft text in `~/pda-recordings/pr-drafts/pr-end-scripts-together.md`. Both branches are on the fork. |
-| B1 1.8, platform-ready wait | `perf/userscript-ready-ping` (`244141a6`) | `userscript-ready-ping` (`b49a6dd1`, on `a2377dcc`) | [#502](https://github.com/Manuito83/torn-pda/pull/502) | Open since 2026-11-03. Draft text in `~/pda-recordings/pr-drafts/pr-userscript-ready-ping.md`. |
+| B1 1.7 part 1, end scripts together | `perf/end-scripts-together` (`79ca88ea`) | `end-scripts-together` (`a4113db9`, on `a2377dcc`) | [#504](https://github.com/Manuito83/torn-pda/pull/504) | Open since 2026-11-03. Draft text in `~/pda-recordings/pr-drafts/pr-end-scripts-together.md`. |
+| B1 1.8, platform-ready wait | `perf/userscript-ready-ping` (`244141a6`) | `userscript-ready-ping` (`b49a6dd1`, on `a2377dcc`) | [#502](https://github.com/Manuito83/torn-pda/pull/502) | Merged on 2026-11-03 as `19912e5a`, without comments or changes. |
 | A1 1.1, travel check counter | none (upstream did 1.1) | `travel-check-observer` (commit `b47209b0`, from local `travel-check-counter`) | [#501](https://github.com/Manuito83/torn-pda/pull/501) | Merged on 2026-11-02 as `9b690feb`. The maintainer then shortened its two comments (`34594b4c`). Keep comments in upstream branches to a few words. |
 
 To see the state of all PRs:
@@ -438,7 +438,7 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 
    Open B1 items, in order of user impact:
 
-   1. Finding 1.8: done in the ninth session, PR #502. See
+   1. Finding 1.8: done in the ninth session, PR #502 (merged). See
       "Fix 1.8: the platform-ready wait".
    2. Finding 1.7, part 1: done in the tenth session. See
       "Fix 1.7, part 1: the end scripts together".
@@ -452,15 +452,33 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    Step 1, the measurement setup, is done (eighth session). See "The B1
    baseline".
 
-   Start of the eleventh session: fix 1.7, part 3 (item 3 above), with
-   the same steps as fix 1.7, part 1 (see that section). First, ask the
-   user about the PR for part 1. Part 3 changes only Dart work, so its success metric is
-   `dart.cb.onLoadStop.wallMs`. With two test scripts, the gain can be too
-   small to see. Look at the code first, and tell the user what the
-   replay can show before you run it.
+   Start of the eleventh session: #502 is merged (`19912e5a`), and
+   `develop` also has `b0361eda` (a large chat change, 15 files). So
+   first:
 
-   Measure each fix against `53fad5c1`, without the other open fixes, so
-   that the comparison shows one fix.
+   1. Rebase `perf/analysis` on `origin/develop`. Keep a local copy of
+      the branch before the rebase (`perf/analysis-pre-19912e5a`). In a
+      conflict, keep the upstream code and put `PerfTrace.getHtml` back.
+   2. Delete the local branches `perf/userscript-ready-ping` and
+      `userscript-ready-ping`. Ask the user before you delete them on the
+      fork and before the force push of `perf/analysis`.
+   3. Rebase `perf/end-scripts-together` on the new `perf/analysis`, so
+      that it stays one commit. Do not change `end-scripts-together`
+      while #504 is open, unless the maintainer asks for changes.
+   4. Build the new base APK from the rebased `perf/analysis`, and run 2
+      check runs on `replay-ready-b1`. The chat change can change the
+      flow or the misses. If a run fails, find why before you go on.
+      This APK is the new base for B1 fixes, in place of `53fad5c1`,
+      because it has fix 1.8.
+
+   Then fix 1.7, part 3 (item 3 above), with the same steps as fix 1.7,
+   part 1 (see that section). Part 3 changes only Dart work, so its
+   success metric is `dart.cb.onLoadStop.wallMs`. With two test scripts,
+   the gain can be too small to see. Look at the code first, and tell the
+   user what the replay can show before you run it.
+
+   Measure each fix against the new base APK, without the other open
+   fixes (#504), so that the comparison shows one fix.
 
    Then one branch for each fix, as in item 1. The user writes and posts
    each PR.
