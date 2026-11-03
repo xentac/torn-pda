@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-02 (end of the ninth session).
+Last update: 2026-11-03 (tenth session).
 
 ## State
 
@@ -56,14 +56,16 @@ Last update: 2026-11-02 (end of the ninth session).
     that records the test userscripts. It is the B1 base. Built in the
     eighth session.
   - `244141a6`: fix 1.8 (`perf/userscript-ready-ping`). Ninth session.
+  - `79ca88ea`: fix 1.7, part 1 (`perf/end-scripts-together`). Tenth
+    session.
   - `57955d23`: the first try of fix 1.8, which did not work. Only for
     the record in "Fix 1.8: the platform-ready wait".
 - Emulator snapshots for replay: `replay-ready` is the A1 snapshot. Keep
   it. `replay-ready-b1` (eighth session) has the test userscripts and
   PDA's five example scripts. Use it for all B1 work, with
   `PDA_SNAPSHOT=replay-ready-b1`. Compare runs only within one snapshot.
-- All commits of the ninth session are on the fork. Ask before each
-  push.
+- All commits of the ninth session are on the fork. The tenth session
+  commits are not on the fork yet. Ask before each push.
 - The report is published as a shared artifact:
   https://claude.ai/artifact/GCojySixXsQJxfYYTqNxfK (version 13). The source is
   `report.md`.
@@ -381,6 +383,7 @@ table when a PR is opened, changed or closed.
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
 | GM handler crashes after renderer recovery (before this project) | none | `fix/gm-handler-reinject` | [#480](https://github.com/Manuito83/torn-pda/pull/480) | Merged on 2026-07-22. |
+| B1 1.7 part 1, end scripts together | `perf/end-scripts-together` (`79ca88ea`) | `end-scripts-together` (`a4113db9`, on `a2377dcc`) | none yet | Ready for the user to post. Draft text in `~/pda-recordings/pr-drafts/pr-end-scripts-together.md`. Not on the fork yet. |
 | B1 1.8, platform-ready wait | `perf/userscript-ready-ping` (`244141a6`) | `userscript-ready-ping` (`b49a6dd1`, on `a2377dcc`) | [#502](https://github.com/Manuito83/torn-pda/pull/502) | Open since 2026-11-03. Draft text in `~/pda-recordings/pr-drafts/pr-userscript-ready-ping.md`. |
 | A1 1.1, travel check counter | none (upstream did 1.1) | `travel-check-observer` (commit `b47209b0`, from local `travel-check-counter`) | [#501](https://github.com/Manuito83/torn-pda/pull/501) | Merged on 2026-11-02 as `9b690feb`. The maintainer then shortened its two comments (`34594b4c`). Keep comments in upstream branches to a few words. |
 
@@ -437,8 +440,8 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 
    1. Finding 1.8: done in the ninth session, PR #502. See
       "Fix 1.8: the platform-ready wait".
-   2. Finding 1.7, part 1: the document-end scripts run one
-      `evaluateJavascript` at a time in `onLoadStop`. Run them in one call.
+   2. Finding 1.7, part 1: done in the tenth session. See
+      "Fix 1.7, part 1: the end scripts together".
    3. Finding 1.7, part 3: `getCondSources` returns an
       `UnmodifiableListView` over a lazy `where` and `map`, so each access
       runs the chain again. Return a real list.
@@ -449,26 +452,15 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    Step 1, the measurement setup, is done (eighth session). See "The B1
    baseline".
 
-   Start of the tenth session: fix 1.7, part 1
-   (item 2 above), with the same steps as fix 1.8:
+   Start of the eleventh session: fix 1.7, part 3 (item 3 above), with
+   the same steps as fix 1.7, part 1 (see that section). First, ask the
+   user about the push of the tenth session branches and about the PR for
+   part 1. Part 3 changes only Dart work, so its success metric is
+   `dart.cb.onLoadStop.wallMs`. With two test scripts, the gain can be too
+   small to see. Look at the code first, and tell the user what the
+   replay can show before you run it.
 
-   1. Look at `origin/develop` for the same change.
-   2. Read how `onLoadStop` injects the document-end scripts, and
-      propose the fix to the user before you write it.
-   3. Commit the fix on a branch from `perf/analysis`, build its APK,
-      and run 8 runs of `53fad5c1.apk` and the new APK, alternated, on
-      `replay-ready-b1`. Before the 16 runs, do 2 runs of the new APK
-      only, and look at the probe fields. In the ninth session, the first
-      try failed, and 16 runs found it. Two runs find it in 4 minutes.
-   4. Compare them with `summarize.py --compare` and
-      `--metric probe.us.endAll.afterLoad --metric probe.us.endGapMs`.
-      The spread of `us.endGapMs` is large, so 16 runs of each build can
-      be necessary.
-   5. Make the upstream branch from `origin/develop` (only the fix,
-      short comments), and write a PR draft with the numbers and an iOS
-      and beta-tester test plan into `~/pda-recordings/pr-drafts/`.
-
-   Fix 1.7, part 1 is measured against `53fad5c1`, without fix 1.8, so
+   Measure each fix against `53fad5c1`, without the other open fixes, so
    that the comparison shows one fix.
 
    Then one branch for each fix, as in item 1. The user writes and posts
@@ -561,6 +553,48 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 4. 16 runs for the profile and faction pages, where the `nav.load` spread is
    over 10 %.
 5. Find why one crimes run went back to the blank page (see the lessons).
+
+### Fix 1.7, part 1: the end scripts together
+
+Done on 2026-11-03 (tenth session). `origin/develop` had no such change
+(still `a2377dcc`).
+
+The fix: `onLoadStop` sent each document-end script with
+`evaluateJavascript` and awaited it before it sent the next one. Now it
+sends all calls at once and awaits them with `Future.wait`. The report
+said "in one `evaluateJavascript`", but the user chose separate calls. In
+one call, a syntax error in one script stops all end scripts, and in-page
+`eval` can be blocked by the page's CSP. The order stays the same: the
+Android plugin posts each call to the main looper in sequence
+(`injectDeferredObject` in `InAppWebView.java`), and WKWebView also keeps
+the order. The steps before the first script did not change, so
+`us.endAll.afterLoad` was not expected to change. A reorder of those
+steps is a separate fix, and it needs an iOS test plan.
+
+The run: 2 check runs of `79ca88ea` (`20261103T064050Z`,
+`20261103T064230Z`, not in the summary) showed a gap of 1 ms at once.
+Then 8 runs of `53fad5c1` and `79ca88ea`, alternated, on
+`replay-ready-b1`, from `20261103T064417Z` to `20261103T070955Z`. All 16
+passed. The summaries are in
+`~/pda-recordings/baselines/fix17p1-79ca88ea/` (`old/` and `new/`).
+
+Medians in ms (p25 to p75):
+
+| Page | `us.endGapMs` | `onLoadStop` wall | `us.endAll.afterLoad` |
+|---|---|---|---|
+| `profiles.php?XID=N` | 162 (96 to 279) to 1 (0 to 1), p < 0.001 | 698 to 326, p 0.014 | 292 to 241, p 0.23 |
+| `page.php?sid=attack` | 29 (27 to 32) to 1 (1 to 2), p < 0.001 | 150 to 101, p 0.16 | 79 to 72, p 0.52 |
+| `page.php?sid=attackLog` | 53 (42 to 83) to 2 (1 to 2), p < 0.001 | 308 to 234, p 0.51 | 190 to 156, p 0.28 |
+
+Other results:
+
+- `nav.load`, `getHtml` and `setState` did not change.
+- On the profile page, `probe.injectAfterTtfb` is 2 ms later (20.2 to
+  22.6, p 0.035). It comes before `onLoadStop`, so the fix cannot cause
+  it. With many metrics, one such p is expected by chance.
+- The gain grows with the number of matching end scripts, because each
+  script after the first one saves one round trip. The replay has only
+  two.
 
 ### Fix 1.8: the platform-ready wait
 
