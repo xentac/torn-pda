@@ -585,7 +585,14 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    (passed). Medians with the user's export, after the fix: 0.56 to
    1.9 ms per page load (two runs). `report.md` now has the corrected
    part 3 and a section on the quote problem (with a Node test). The
-   artifact is not republished yet.
+   artifact is not republished yet. The fix APK is `1239f828`. Its 2
+   check runs on `replay-ready-b1` passed (`20261103T193615Z`,
+   `20261103T193755Z`), with 51 and 48 misses, 5 and 4 of them
+   `attackData`. All test scripts ran on the three pages, the start
+   script had status 200, and `us.endGapMs` was 1 to 4 ms. The PR
+   draft is `~/pda-recordings/pr-drafts/pr-cond-sources-cache.md`.
+   The upstream branch passes `flutter analyze` and `test/models` on
+   its own, with the `.example` stubs placed as `docs/README.md` says.
 
    The risk of a script change during `onLoadStop`: since part 1, the
    end scripts go to `Future.wait`, which reads the list at once, with
