@@ -62,7 +62,7 @@ Last update: 2026-11-02 (end of the ninth session).
   it. `replay-ready-b1` (eighth session) has the test userscripts and
   PDA's five example scripts. Use it for all B1 work, with
   `PDA_SNAPSHOT=replay-ready-b1`. Compare runs only within one snapshot.
-- All commits of the eighth session are on the fork. Ask before each
+- All commits of the ninth session are on the fork. Ask before each
   push.
 - The report is published as a shared artifact:
   https://claude.ai/artifact/GCojySixXsQJxfYYTqNxfK (version 13). The source is
@@ -381,7 +381,7 @@ table when a PR is opened, changed or closed.
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
 | GM handler crashes after renderer recovery (before this project) | none | `fix/gm-handler-reinject` | [#480](https://github.com/Manuito83/torn-pda/pull/480) | Merged on 2026-07-22. |
-| B1 1.8, platform-ready wait | `perf/userscript-ready-ping` (`244141a6`) | `userscript-ready-ping` (`b49a6dd1`, on `a2377dcc`) | not posted | Draft in `~/pda-recordings/pr-drafts/pr-userscript-ready-ping.md`. The branches are local only. Ask before the push to the fork. |
+| B1 1.8, platform-ready wait | `perf/userscript-ready-ping` (`244141a6`) | `userscript-ready-ping` (`b49a6dd1`, on `a2377dcc`) | not posted | Draft in `~/pda-recordings/pr-drafts/pr-userscript-ready-ping.md`. Both branches are on the fork. The user opens the PR from `xentac:userscript-ready-ping` against `develop`. |
 | A1 1.1, travel check counter | none (upstream did 1.1) | `travel-check-observer` (commit `b47209b0`, from local `travel-check-counter`) | [#501](https://github.com/Manuito83/torn-pda/pull/501) | Merged on 2026-11-02 as `9b690feb`. The maintainer then shortened its two comments (`34594b4c`). Keep comments in upstream branches to a few words. |
 
 To see the state of all PRs:
