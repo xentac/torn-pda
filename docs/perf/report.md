@@ -179,10 +179,10 @@ This cost applies to users with userscripts. Many players install PDA for its us
 
 1. `@run-at document-end` scripts run from `onLoadStop` with `evaluateJavascript`, one at a time. `onLoadStop` fires after the window `load` event, which waits for every image. Tampermonkey runs these scripts at `DOMContentLoaded`. On Torn's image-heavy pages, the difference can be seconds. The plugin's own native "document end" option also waits for `load` on Android, so a switch to that option does not help.
 2. Before the first end script runs, `onLoadStop` awaits many `removeUserScriptsByGroupName` calls in sequence (`webview_full.dart:1913`). It makes one call for each script that does not match the page, including disabled scripts. With 40 installed scripts and 3 matches, that is 37 round trips. On iOS, each removal rebuilds the whole `WKUserContentController` and sends every script source to the web content process again. It does this also for a removal that matched nothing.
-3. `getCondSources` in `userscripts_provider.dart` returns an `UnmodifiableListView` over a lazy `where` and `map`. Each `length` or index access runs the whole chain again, so a loop over the result is quadratic. `matchesTarget` in `userscript_model.dart` compiles new `RegExp` objects for each `@match` pattern on every call. `adaptSource` runs regular-expression replacements over the full source on each access.
+3. `adaptSource` in `userscripts_provider.dart` copies each matching script and scans its full source three times, on every call. `getCondSources` calls it, and it runs three times or more per page load, so each start script is adapted twice. With one user's 44 enabled scripts (4.6 MB), this took 16 to 31 ms per page load in a host benchmark. It runs on the UI isolate, and one of the calls comes before `shouldOverrideUrlLoading` returns. Also, `getCondSources` returns an `UnmodifiableListView` over a lazy `where` and `map`, so each read of `length` runs the filter again. This costs only microseconds. `matchesTarget` in `userscript_model.dart` compiled new `RegExp` objects for each `@match` pattern on every call (fixed upstream in `610af44f`).
 4. A document-start script that matched the previous page stays registered until the next `onLoadStop`. So it also runs on the next page, and its `@match` is not tested again. This is a correctness bug, and it wastes work.
 
-Fix, short term: run all end scripts first, in one `evaluateJavascript`. Remove only the groups that are registered. Cache compiled patterns. Make `getCondSources` return a real list. Fix, long term: track B.
+Fix, short term: run all end scripts first, in one `evaluateJavascript`. Remove only the groups that are registered. Cache compiled patterns. Cache the adapted source of each script, and make `getCondSources` return a real list. Fix, long term: track B.
 
 Measure with: `probeStart` of a `document-end` copy of the probe, in PDA and in Tampermonkey.
 
@@ -232,6 +232,20 @@ Measure with: `res.lastEnd` and `nav.load` in the probe, with chat hidden and sh
 | The TCT clock, the loot page and several chat widgets (roster, player cards, faction operations) call `setState` from 1-second timers. They also do this behind the browser, because `Offstage` and `IndexedStack` do not stop timers or tickers. | Gate the timers on the browser state. Wrap hidden branches in `TickerMode(enabled: false)`. |
 | API v2 creates a new `ChopperClient` for each call and decodes each response twice on the main thread. API v1 uses the top-level `http.get`, which opens a new connection for each call. Except for faction crimes, large responses are decoded on the main thread. | Share one client. Decode once. Use `Isolate.run` for large responses. |
 | `main()` runs about 14 awaits in sequence before `runApp`, including WorkManager, HomeWidget and the notification permission request. | Move the ones that the first frame does not need to after the first frame. |
+
+### Outside performance: the quote replacement breaks some scripts
+
+`adaptSource` replaces each `“` and `”` with `"`, and each `‘` and `’` with `'`, in the whole source of every userscript. Nothing documents this. The double quotes came in `d9be50ba` (2023-01-18), and the single quotes in `ea0b2238` (2025-09-07). The likely purpose is to repair scripts that a phone keyboard changed with "smart punctuation". It also changes the quotes inside strings and comments, and that can break a script that works in Tampermonkey. A test in Node:
+
+| Source | As written | After PDA |
+|---|---|---|
+| `console.log('Don’t hit');` | Works | `missing ) after argument list` |
+| `el.title = "He said “hi”";` | Works | `Unexpected identifier 'hi'` |
+| `console.log(“typed on a phone”);` | `Invalid or unexpected token` | Works |
+
+So the replacement repairs the third case and breaks the first two. A broken script fails as a whole, with only a console error. Tampermonkey does not change the source, so a script author who tests there does not see the problem. Of one user's 44 enabled scripts, one has curly quotes, all inside a string that stays valid.
+
+Fix: replace the quotes only in scripts that do not parse as they are, or only outside strings and comments. Or show a warning in the script editor when a script has curly quotes outside strings, in place of a silent change. This needs the maintainer's view, because existing scripts can depend on the repair.
 
 ## The page data layer
 
