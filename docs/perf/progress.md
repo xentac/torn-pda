@@ -574,6 +574,19 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    error. A possible later report item, not a performance one. The
    cache must keep the replacement as it is.
 
+   The user's decision: the mixed cache and the `.toList()` in one PR,
+   and document the quote problem. The cache is in `UserScriptModel`
+   (`adaptedBody`). `adaptSource` is split into `adaptBody` (the
+   script part, the same string when nothing changes) and
+   `_wrapSource`, so a script that needs no change costs no memory.
+   The upstream branch is `cond-sources-cache` (on `1edf12c5`). The
+   measurement branch has two more commits: the benchmark and a check
+   that the output equals the old code for every exported script
+   (passed). Medians with the user's export, after the fix: 0.56 to
+   1.9 ms per page load (two runs). `report.md` now has the corrected
+   part 3 and a section on the quote problem (with a Node test). The
+   artifact is not republished yet.
+
    The risk of a script change during `onLoadStop`: since part 1, the
    end scripts go to `Future.wait`, which reads the list at once, with
    no await between the steps. The other reads have no await inside
