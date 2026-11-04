@@ -1895,7 +1895,13 @@ class WebViewFullState extends State<WebViewFull>
               final int s0 = olsClock.elapsedMicroseconds;
               final f = PerfTrace.cb(_tabUid, name, body);
               olsSent.add(
-                f.then((_) {}, onError: (_) {}).whenComplete(() => olsSpans.add((s0, olsClock.elapsedMicroseconds))),
+                f.then((_) {}, onError: (_) {}).whenComplete(() {
+                  final int s1 = olsClock.elapsedMicroseconds;
+                  olsSpans.add((s0, s1));
+                  if (name.endsWith('.endScripts') || name.endsWith('.copy')) {
+                    PerfTrace.count(_tabUid, '$name.doneUs', s1);
+                  }
+                }),
               );
               return f;
             }
@@ -1957,7 +1963,7 @@ class WebViewFullState extends State<WebViewFull>
             final p1 = _olsPing(c, '$ols.ping1', trip);
             _olsPageDelta('$ols.pagePreUs', p0, p1);
 
-            _quiet(trip('$ols.minHeight', () => _maybeEnsureMinHeight(c)));
+            await _send(trip('$ols.minHeight', () => _maybeEnsureMinHeight(c)));
 
             _firstLoadCompleted = true;
 
@@ -2004,20 +2010,22 @@ class WebViewFullState extends State<WebViewFull>
               // are present whenever the page runs any userscript (start or end)
               // Not awaited: the page runs the end scripts right behind it, and they skip
               // themselves if it found something missing. The recovery then sends them again
-              _quiet(
+              await _send(
                 trip(
                   '$ols.injectMissing',
                   () => _injectMissingDocumentStartScripts(
                     c,
                     uri.toString(),
                     isCurrent: () => mounted && gen == _loadGen,
-                    afterRecovery: () => Future.wait(
-                      scriptsToAdd.map(
-                        (script) => webViewController!.evaluateJavascript(
-                          source: _oncePerDocument(script.groupName, script.source),
-                        ),
-                      ),
-                    ),
+                    afterRecovery: _olsOld
+                        ? null
+                        : () => Future.wait(
+                            scriptsToAdd.map(
+                              (script) => webViewController!.evaluateJavascript(
+                                source: _oncePerDocument(script.groupName, script.source),
+                              ),
+                            ),
+                          ),
                   ),
                 ),
               );
@@ -2026,7 +2034,7 @@ class WebViewFullState extends State<WebViewFull>
               // Guard once-per-document so hash navigation (which re-fire onLoadStop) don't re-run END scripts
               // Sent together, they still run in order
               PerfTrace.count(_tabUid, '$ols.endScriptsN', scriptsToAdd.length);
-              _quiet(
+              await _send(
                 trip(
                   '$ols.endScripts',
                   () => Future.wait(
@@ -2830,6 +2838,14 @@ class WebViewFullState extends State<WebViewFull>
   }
 
   void _quiet(Future<dynamic> f) => f.then((_) {}, onError: (_) {});
+
+  // Perf builds: PDA_OLS_OLD=true waits for each trip, as before
+  static const bool _olsOld = bool.fromEnvironment('PDA_OLS_OLD');
+  Future<void> _send(Future<dynamic> f) {
+    if (_olsOld) return f;
+    _quiet(f);
+    return Future.value();
+  }
 
   // Skips when the probe sent just before found missing scripts
   String _unlessMissing(String source) => "if(!window.__pdaMiss){\n$source\n}";
