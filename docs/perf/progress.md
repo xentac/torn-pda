@@ -669,6 +669,10 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
      model tests pass. Draft:
      `~/pda-recordings/pr-drafts/pr-start-guard.md`.
 
+   Both branches and `perf/analysis` (`3534b46a`) are on the fork
+   since 2026-11-03, pushed with the user's approval. The user posts
+   the PRs. Post PR A first, then PR B after #505 and PR A.
+
    The `history.back()` test: snapshot `replay-ready-b1-back`
    (`replay-ready-b1-notabs` plus `perf-back-once`, added with
    `add-back-once.yaml`, then `open-blank.yaml`). The flow is
