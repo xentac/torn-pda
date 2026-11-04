@@ -784,6 +784,31 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    at once. So the cost of the two `innerHtml` copies for a user with
    a login method is not measured.
 
+   Second version, `perf/loadstop-info` `728b73f1`. The script also
+   returns `document.title`, so a page without a title element does
+   not call `getTitle()` (a second round trip). The script reads
+   `body.innerHTML` and the login form only for a user with a login
+   method, as the old code did. The check build `125cc3a7` also
+   compares `document.title` with `getTitle()`. One run of each flow
+   passed (`20261104T065526Z`, `20261104T065716Z`,
+   `20261104T070025Z`), and all 27 calls gave the same result. Some
+   `PDA-PERF-INFO` records have 2 parts, so join them as
+   `read_records` does.
+
+   Crimes, 8 and 8 alternated runs of `de8a6221` and `728b73f1`, all
+   16 passed (from `20261104T070228Z` to `20261104T073959Z`). The
+   base copy takes 246 ms per page record (3 copies, 240 KB) and the
+   parse 18 ms. The fix script takes 155 ms. `onLoadStop.wallMs` goes
+   from 971 to 868 ms (-11 %, p 0.20). `dart.lag.over16` goes from
+   9.5 to 7.5 (p 0.20), and `lag.totalMs` does not change (p 0.80).
+   `nav.dcl` and `nav.load` do not change.
+
+   The result of the three pages: the fix removes all `onLoadStop`
+   copies and their parse. The wall time goes down on 3 of 3 pages
+   by 11 to 19 %, but only one of them has p 0.05. The page load does
+   not change. A travel page now costs one more round trip (the
+   script, then the full copy).
+
    Start of the thirteenth session. At the end of the twelfth session:
 
    - Open PRs: #505 (source cache), #507 (`@match`), #508 (skip and
