@@ -411,7 +411,7 @@ table when a PR is opened, changed or closed.
 |---|---|---|---|---|
 | `onLoadStop` awaits only the copy | `perf/ols-send` (`65ace9f9`) | `onload-stop-one-wait` (commit `39609cb1`, on `origin/develop` `28d0d74e`) | not opened | Pushed to the fork on 2026-11-04. The user opens the PR. |
 | GM handler crashes after renderer recovery (before this project) | none | `fix/gm-handler-reinject` | [#480](https://github.com/Manuito83/torn-pda/pull/480) | Merged on 2026-07-22. |
-| B1 1.7 part 4, start script skip and page `@match` check | `perf/start-skip` (`81da92e3`), `perf/start-guard` (`cbfa3236`) | `start-guard` (commit `9b523b82`, on `match-semantics` plus the #505 commit, pushed to the fork on 2026-11-03) | [#508](https://github.com/Manuito83/torn-pda/pull/508) | Open since 2026-11-04. #505 and #507 are merged now. The maintainer's `74a51407` changed `@match` again ("hash compatibility"), so check #508 against it. |
+| B1 1.7 part 4, start script skip and page `@match` check | `perf/start-skip` (`81da92e3`), `perf/start-guard` (`cbfa3236`) | `start-guard` (commit `9b523b82`, on `match-semantics` plus the #505 commit, pushed to the fork on 2026-11-03) | [#508](https://github.com/Manuito83/torn-pda/pull/508) | Open since 2026-11-04. #505 and #507 are merged now. The maintainer's `74a51407` matches a pattern that has a `#` against the full URL, and the rest without the hash. `start-guard` is rebased on `28d0d74e` as `161d6d62` (local): the page guard follows the same rule, and the guard test has two `#` patterns. 98 model tests pass. Force-push it only with the user's go-ahead. |
 | `@match` as in Tampermonkey (issue #314) | `perf/match-semantics` (`29014052`) | `match-semantics` (commit `787b2406`, on `5ea591af`, pushed to the fork on 2026-11-03) | [#507](https://github.com/Manuito83/torn-pda/pull/507) | Merged on 2026-11-04 as `d1280765`. The maintainer then added `74a51407`. |
 | B1 1.7 part 3, cache the adapted source | `perf/cond-sources-list` | `cond-sources-cache` (commit `d7165545`, on `5ea591af`, pushed to the fork on 2026-11-03) | [#505](https://github.com/Manuito83/torn-pda/pull/505) | Merged on 2026-11-03 as `87387e22`. |
 | B1 1.7 part 1, end scripts together | deleted | deleted | [#504](https://github.com/Manuito83/torn-pda/pull/504) | Merged on 2026-11-03 as `1edf12c5`, without comments or changes. |
@@ -1089,6 +1089,16 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    (483183, 953 installs), `page.php?sid=crimes#/cracking` and the
    same for `loader.php`. No `#` in `@include` or `@exclude` there.
    To do: the other pages.
+
+   Rebase of `perf/analysis` on `origin/develop` `28d0d74e` (after
+   #505 and #507): no conflicts, the 20 `PerfTrace.getHtml` calls
+   stay, `flutter analyze lib` is clean and 96 model tests pass. The
+   old head is the local branch `perf/analysis-pre-rebase`. CI on
+   `develop` fails since `948c2495`: `chat_notifications.dart` calls
+   `readNativeApiToken` and `playerIdFromApiToken`, which the
+   native-auth stub does not have. For local tests, add the two
+   functions to the ignored stub
+   `lib/torn-pda-native/auth/native_auth_models.dart`.
 
    Start of the fourteenth session. At the end of the thirteenth
    session:
