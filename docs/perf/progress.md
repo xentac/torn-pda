@@ -402,6 +402,8 @@ table when a PR is opened, changed or closed.
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
 | GM handler crashes after renderer recovery (before this project) | none | `fix/gm-handler-reinject` | [#480](https://github.com/Manuito83/torn-pda/pull/480) | Merged on 2026-07-22. |
+| B1 1.7 part 4, start script skip and page `@match` check | `perf/start-skip` (`81da92e3`), `perf/start-guard` (`cbfa3236`) | `start-guard` (commit `9b523b82`, on `match-semantics` plus the #505 commit, pushed to the fork on 2026-11-03) | [#508](https://github.com/Manuito83/torn-pda/pull/508) | Open since 2026-11-04. Its diff shows the #505 and #507 commits until they are merged. |
+| `@match` as in Tampermonkey (issue #314) | `perf/match-semantics` (`29014052`) | `match-semantics` (commit `787b2406`, on `5ea591af`, pushed to the fork on 2026-11-03) | [#507](https://github.com/Manuito83/torn-pda/pull/507) | Open since 2026-11-04. |
 | B1 1.7 part 3, cache the adapted source | `perf/cond-sources-list` | `cond-sources-cache` (commit `d7165545`, on `5ea591af`, pushed to the fork on 2026-11-03) | [#505](https://github.com/Manuito83/torn-pda/pull/505) | Open since 2026-11-03. |
 | B1 1.7 part 1, end scripts together | deleted | deleted | [#504](https://github.com/Manuito83/torn-pda/pull/504) | Merged on 2026-11-03 as `1edf12c5`, without comments or changes. |
 | B1 1.8, platform-ready wait | deleted | deleted | [#502](https://github.com/Manuito83/torn-pda/pull/502) | Merged on 2026-11-03 as `19912e5a`, without comments or changes. |
@@ -670,8 +672,8 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
      `~/pda-recordings/pr-drafts/pr-start-guard.md`.
 
    Both branches and `perf/analysis` (`3534b46a`) are on the fork
-   since 2026-11-03, pushed with the user's approval. The user posts
-   the PRs. Post PR A first, then PR B after #505 and PR A.
+   since 2026-11-03, pushed with the user's approval. The user posted
+   them as #507 (PR A) and #508 (PR B) on 2026-11-04.
 
    The `history.back()` test: snapshot `replay-ready-b1-back`
    (`replay-ready-b1-notabs` plus `perf-back-once`, added with
