@@ -2000,8 +2000,10 @@ class WebViewFullState extends State<WebViewFull>
                 _addExtraHeightForPullToRefresh();
               }
 
-              final html = await PerfTrace.getHtml(_tabUid, webViewController, 'loadStop');
-              final document = parse(html);
+              final html = await PerfTrace.cb(
+                  _tabUid, 'loadStop.copy', () => PerfTrace.getHtml(_tabUid, webViewController, 'loadStop'));
+              PerfTrace.count(_tabUid, 'loadStop.htmlKB', (html?.length ?? 0) ~/ 1024);
+              final document = PerfTrace.cbSync(_tabUid, 'loadStop.parse', () => parse(html));
 
               // Force to show title
               if (!_isChainingBrowser) {
@@ -2060,7 +2062,7 @@ class WebViewFullState extends State<WebViewFull>
                 }
               }
 
-              assessErrorCases(document: document);
+              PerfTrace.cb(_tabUid, 'loadStop.errorCases', () => assessErrorCases(document: document));
 
               if (uri != null) {
                 // Fallback to align tab history with the final URL once the page finishes loading
