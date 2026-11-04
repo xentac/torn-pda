@@ -6,5 +6,6 @@
  "https://pda-replay.invalid/echo.json?from=start": "echo.json",
  "https://pda-replay.invalid/echo.json?from=end": "echo.json",
  "https://pda-replay.invalid/userscripts/perf-start-profile.user.js": "perf-start-profile.user.js",
- "https://pda-replay.invalid/userscripts/perf-start-page.user.js": "perf-start-page.user.js"
+ "https://pda-replay.invalid/userscripts/perf-start-page.user.js": "perf-start-page.user.js",
+ "https://pda-replay.invalid/userscripts/perf-back-once.user.js": "perf-back-once.user.js"
 }
