@@ -77,6 +77,14 @@ Last update: 2026-11-04 (thirteenth session).
   - `cd6ed330`: `perf/analysis` on `develop` at `5ea591af`. The B1 base
     in place of `31711aab`. Twelfth session. Its 2 check runs on
     `replay-ready-b1` passed (`20261103T212007Z`, `20261103T212213Z`).
+  - `ab0b9192`: `perf/analysis` with a label on each `getHtml` call.
+    Thirteenth session.
+  - `de8a6221`: `ab0b9192` with timers on the `onLoadStop` copy,
+    parse and error check. The base for the next `onLoadStop` work.
+  - `2c76a481` and `728b73f1`: the two versions of the `onLoadStop`
+    page info fix (`perf/loadstop-info`). Not sent upstream.
+  - `0d81cb9e` and `125cc3a7`: the check builds of that fix. Only for
+    the record.
   - `57955d23`: the first try of fix 1.8, which did not work. Only for
     the record in "Fix 1.8: the platform-ready wait".
 - Emulator snapshots for replay: `replay-ready` is the A1 snapshot. Keep
@@ -808,6 +816,40 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    by 11 to 19 %, but only one of them has p 0.05. The page load does
    not change. A travel page now costs one more round trip (the
    script, then the full copy).
+
+   The user's decision (same session): no PR for this fix, because
+   the page load does not change. The fix stays on the fork only.
+   The lesson: the cost of a page read is the round trip to the page,
+   which waits for the page's main thread. A smaller read waits as
+   long. So a fix must make fewer round trips, not smaller ones. A
+   test on a phone was possible, but the user's phone has the real
+   app, and a perf APK replaces it. So we did not run it.
+
+   Start of the fourteenth session. At the end of the thirteenth
+   session:
+
+   - Open PRs: #505, #507, #508. Run the `gh pr list` command in
+     "State". If one was merged, update the table and the status
+     section of `report.md` (and the artifact).
+   - Local commits that are not on the fork: on `perf/analysis`, from
+     `de8a6221` to the end. The branches `perf/loadstop-info`
+     (`728b73f1`) and `perf/loadstop-info-check` (`125cc3a7`) are
+     only local. Ask the user before a push.
+   - The artifact of the report is still version 15. `report.md` has
+     a new sentence in the status row of 1.2 (the `onLoadStop` try).
+     Ask the user before you publish version 16.
+   - Keep the five measurement branches of the twelfth session until
+     #507 and #508 are merged (the user's choice).
+   - The next task: count the round trips to the page in one
+     `onLoadStop` chain, and find which ones can be merged or
+     skipped. Each `evaluateJavascript`, `getHtml`, `getTitle`,
+     `getCookie` and `callAsyncJavaScript` is one. On the faction and
+     crimes pages the chain runs 3 to 4 times per page load, once for
+     each hash route change. Without a test plan for iOS, do not
+     change the order or the number of WebView callbacks (the
+     maintainer's rule, see item 1). First read the code and give the user the list with a
+     timer plan, before you change anything. The base APK is
+     `de8a6221`, with the `onLoadStop` timers.
 
    Start of the thirteenth session. At the end of the twelfth session:
 

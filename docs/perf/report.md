@@ -27,7 +27,7 @@ The maintainer's commit `610af44f` ("browser speed", 2026-11-02) and our pull re
 | Finding | Status |
 |---|---|
 | 1.1 Travel check | Fixed upstream in `610af44f` (an observer in the page). #501 (merged) adds a counter to it. |
-| 1.2 Page reads | The `onLoadStart` copy now runs only on `loader.php` (`610af44f`). The other reads are open (track P). |
+| 1.2 Page reads | The `onLoadStart` copy now runs only on `loader.php` (`610af44f`). We tried a small script in place of the `onLoadStop` copy (2026-11-04). It removed every copy and its parse, but the page load did not change, because the script is also one round trip to the page. Not sent upstream. The other reads are open (track P). |
 | 1.3 Progress bar | Fixed upstream in `610af44f`: a `ValueNotifier`, and no animation when the bar is off or the tab is not on screen. |
 | 1.4 Link navigations | The iframe fast path and the `http` race are fixed upstream in `610af44f`. `onLoadStart` registers the start scripts only after they were lost. #508 (open) registers a start script only when it changed. Track B2 is open. |
 | 1.5, 1.6 | Open (tracks P and D). |
