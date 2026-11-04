@@ -469,7 +469,8 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
       `cond-sources-cache`. See the entry "Fix 1.7, part 3, eleventh
       session" below.
    4. Finding 1.7, part 4: mostly done upstream in `610af44f`. The rest
-      is in progress (twelfth session). See "Fix 1.7, part 4, twelfth
+      is done in the twelfth session: #507 (`@match`) and #508 (skip
+      and page check), both open. See "Fix 1.7, part 4, twelfth
       session" below.
 
    Step 1, the measurement setup, is done (eighth session). See "The B1
