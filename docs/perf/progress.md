@@ -1038,6 +1038,43 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    `65ace9f9-new.apk`, 2 runs each of `attack`, `faction` and
    `crimes`, in the order A B B A.
 
+   Results: all 12 runs passed (`20261104T183847Z` to
+   `20261104T190727Z`), with the same miss counts as before. The
+   table shows the first chain of each page, two runs per build, in
+   ms. "Copy done" is the time from the start of the chain to the
+   HTML answer, which the title and the bars wait for. "After the
+   first wait" is copy done minus `ping0`, so it takes away the wait
+   that both builds pay.
+
+   | Page | Copy done, old | Copy done, new | After the first wait, old | After the first wait, new |
+   |---|---|---|---|---|
+   | `profiles.php` | 717, 430 | 173, 103 | 491, 315 | 23, 41 |
+   | `sid=attack` | 78, 48 | 58, 19 | 33, 36 | 32, 6 |
+   | `sid=attackLog` | 207, 164 | 92, 97 | 164, 148 | 67, 23 |
+   | `step=your` | 111, 179 | 62, 47 | 62, 81 | 13, 33 |
+   | `step=your&type=N` | 123, 168 | 56, 71 | 80, 101 | 11, 36 |
+
+   - The end scripts answer sooner too: on `profiles.php` 534 and
+     185 ms (old) against 157 and 75 ms (new), and on the faction
+     pages 83 to 146 ms against 41 to 59 ms.
+   - The crimes records hold two chains of the hub, so they are not
+     in the table. Copy done was 560 and 569 ms (old) against 79 and
+     127 ms (new).
+   - Repeat chains show no clear change. Faction `step=your`: 128
+     and 141 ms per call (old) against 146 and 113 ms (new). After a
+     route change, the first wait (`ping0`, 90 to 112 ms per call)
+     is most of the time. The page is then free quickly, so the
+     stacked waits were small there.
+   - `serialToCopy` is 4 per chain on the old build and 2 on the new
+     build, not 3 and 1. A call that returns without a trip (the
+     min-height script after its first run) records a span of about
+     0 ms. Every later trip then counts as starting after it. So the
+     counter is one too high. The copy done times show one wait on
+     the new build: the copy answers 1 to 60 ms after `ping0`.
+   - Next: fix the counter to skip spans of calls that send no trip,
+     then make the clean branch from `master` without the timers, and
+     write the iOS test plan.
+
    Start of the fourteenth session. At the end of the thirteenth
    session:
 
