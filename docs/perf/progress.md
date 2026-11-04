@@ -86,7 +86,7 @@ Last update: 2026-11-03 (twelfth session).
 - All commits of the tenth session are on the fork (pushed on
   2026-11-03 with the user's approval). Ask before each push.
 - The report is published as a shared artifact:
-  https://claude.ai/artifact/GCojySixXsQJxfYYTqNxfK (version 14, 2026-11-03, with the corrected 1.7 part 3 and the quote section). The A1 items that upstream did are not marked in it yet. The source is
+  https://claude.ai/artifact/GCojySixXsQJxfYYTqNxfK (version 15, 2026-11-04, with a status section and status notes in 1.4 and 1.7 part 4). The source is
   `report.md`.
 - Track T (record and replay) works from start to finish on the emulator:
   capture, anonymize, snapshot, automated test run. Three flows pass:
@@ -918,8 +918,9 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    - The A1 items from 1.4 (the iframe fast path, the `http` race,
      document-start scripts once per navigation), and `getHtml` 3 on the
      profile page.
-   - Mark the A1 items that upstream did in `report.md`, and republish
-     the report artifact.
+   - Done (2026-11-04): the status of each finding is in `report.md`
+     and in the artifact (version 15). Update the status section when
+     a PR is merged.
    - The new `develop` makes requests that the recordings do not have
      (`tchat/settings`, `tchat/rooms/tokens`, `user/organizedcrime`). A
      new capture needs the user's login (`live-ready`), so ask the user
