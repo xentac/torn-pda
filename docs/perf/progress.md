@@ -1083,8 +1083,8 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    the user downloads the list pages
    (`greasyfork.org/en/scripts/by-site/torn.com.json?page=N`) in a
    browser. The headers (`.meta.js` on `update.greasyfork.org`)
-   download with wget. The script is `gf-fetch.sh` in the scratchpad
-   of this session (not kept). Page 1 (100 scripts, the most installed)
+   download with wget. The script and the data are in
+   `~/pda-recordings/greasyfork/` (pages in `gf-data/pages/N.json`). Page 1 (100 scripts, the most installed)
    has one script with a `#` in `@match`: "Torn Rigs Layout Switcher"
    (483183, 953 installs), `page.php?sid=crimes#/cracking` and the
    same for `loader.php`. No `#` in `@include` or `@exclude` there.
