@@ -994,6 +994,50 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    - Measure A as `probeStart` of a `document-end` test script, and B
      as the time from a repeat `onLoadStop` to the title report.
 
+   The plan that replaces A and B (agreed with the user): send every
+   page trip of the chain at once, in order, and await only the copy.
+   The page runs our trips in the order that we send them, so the end
+   scripts still run after the probe, and the copy still sees what the
+   end scripts changed. The first chain then has one wait in place of
+   three (four on faction). A repeat chain also has one wait, so B is
+   not needed for the waits. The rule is the order of sends, not
+   `.then` in place of `await`: `probe.then(send)` still costs a wait.
+
+   - The probe sets `window.__pdaMiss` in the page. Each end script is
+     sent as `if(!window.__pdaMiss){...}`. If the probe found missing
+     scripts, the end script skips itself. Then the Dart side injects the
+     missing scripts, sets the flag to false and sends the end scripts
+     again. The once-per-document guard stops a second run. This keeps
+     top-level declarations at top level (no function wrapper).
+   - A late answer must not act on a new document. `onLoadStart`
+     increases `_loadGen`, and the recovery checks it.
+   - Each unawaited future gets its own error handler, because the
+     `try` of the chain catches only awaited calls.
+   - The min-height script is also not awaited.
+   - It changes the timing of the WebView calls, but not their number
+     or order. It still needs an iOS test plan (the maintainer's
+     rule).
+   - Known gap: if the probe runs in the page but its answer is lost,
+     the end scripts skip and nothing sends them again. The webview
+     is then usually gone.
+
+   The developer offered a bridge: one Dart class for all page calls,
+   with a CI rule against direct controller calls, and a unit test
+   with a fake bridge that counts the serial trips of the chain. That
+   test needs the chain as a function that takes the bridge. It can
+   replace our replay check after this work.
+
+   Measurement: `perf/ols-send` `65ace9f9` (local only). The
+   `trip()` recorder in `onLoadStop` times each page trip up to the
+   copy. `ols1.serialToCopy` is the longest run of trips where each
+   one starts after the one before it answered, summed over the
+   calls of the record. `endScripts.doneUs` and `copy.doneUs` are the
+   time from the start of the chain to their answers. The define
+   `PDA_OLS_OLD=true` builds the old chain (each trip awaited) from
+   the same code, for a fair A/B. APKs: `65ace9f9-old.apk` and
+   `65ace9f9-new.apk`, 2 runs each of `attack`, `faction` and
+   `crimes`, in the order A B B A.
+
    Start of the fourteenth session. At the end of the thirteenth
    session:
 
