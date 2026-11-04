@@ -270,14 +270,14 @@ class WebViewSimpleDialogState extends State<WebViewSimpleDialog> {
               }
             }
 
-            PerfTrace.getHtml(null, webView).then(
+            PerfTrace.getHtml(null, webView, 'simpleDialog').then(
               (value) async {
                 if (value != null) {
                   fireCallbackOnCaptchaSuccess(value);
                   return;
                 }
                 await Future.delayed(const Duration(milliseconds: 500));
-                PerfTrace.getHtml(null, webView).then((value) {
+                PerfTrace.getHtml(null, webView, 'simpleDialog2').then((value) {
                   if (value != null) {
                     fireCallbackOnCaptchaSuccess(value);
                     return;

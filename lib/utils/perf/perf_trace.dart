@@ -115,8 +115,12 @@ class PerfTrace {
   }
 
   /// Counts and forwards a getHtml call. Use in place of `controller.getHtml()`.
-  static Future<String?> getHtml(String? tab, InAppWebViewController? c) {
-    if (enabled) tab == null ? countGlobal('getHtml') : count(tab, 'getHtml');
+  /// [site] names the caller, counted as `getHtml.<site>` next to the total.
+  static Future<String?> getHtml(String? tab, InAppWebViewController? c, [String site = '?']) {
+    if (enabled) {
+      tab == null ? countGlobal('getHtml') : count(tab, 'getHtml');
+      tab == null ? countGlobal('getHtml.$site') : count(tab, 'getHtml.$site');
+    }
     return c?.getHtml() ?? Future.value(null);
   }
 
