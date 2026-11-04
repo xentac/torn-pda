@@ -94,7 +94,7 @@ class ForeignStocksWebviewHandler {
   }
 
   Future<dom.Document> _freshDocument(dom.Document fallback) async {
-    final html = await PerfTrace.getHtml(null, webViewController);
+    final html = await PerfTrace.getHtml(null, webViewController, 'travelFresh');
     return html != null ? parse(html) : fallback;
   }
 
