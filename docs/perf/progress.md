@@ -1102,6 +1102,57 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    functions to the ignored stub
    `lib/torn-pda-native/auth/native_auth_models.dart`.
 
+   Start of the fifteenth session. At the end of the fourteenth
+   session:
+
+   - The task: finding 1.5, the `onLoadResource` messages (the user
+     chose it). Measure first, then read the plugin, then bring the
+     user a plan before any code. In the 65ace9f9 runs, a page sent
+     87 to 306 `onLoadResource` calls in its first 10 s, with 19 to
+     219 ms of Dart time. Each call is also a bridge hop and an
+     `evaluateJavascript` answer, which is one more page trip in the
+     same queue as the `onLoadStop` calls. Measure per page: the
+     calls, the Dart time and the page trips. Read the plugin
+     (`~/.pub-cache/git/flutter_inappwebview-*`, the pin in
+     `pubspec.lock`) for two fixes: an observer that sends only URLs
+     that match patterns from Dart (a PR to the maintainer's plugin
+     fork), or `useOnLoadResource` only on the sections that need it
+     (trades, vault, jail, bounties, properties, factions), if the
+     plugin allows a change at run time. iOS needs a test plan (a
+     code comment says that AJAX interception broke `onLoadResource`
+     on iOS).
+   - The base runs of `perf/analysis` `56a2b4e0` (rebased on
+     `28d0d74e`) may still run when the new session starts. Until
+     `~/pda-recordings/runs/` has 6 folders ending in `-56a2b4e0`
+     (2 each of attack, faction, crimes): do not switch branches or
+     build in the main checkout, and do not start an emulator. The
+     APK is `~/pda-recordings/apks/56a2b4e0.apk`, the run script is
+     `~/pda-recordings/runs_base.sh`. Then summarize them with
+     `tools/perf/summarize.py` and `~/pda-recordings/ols_trips.py`,
+     and write the base numbers here.
+   - The main checkout's ignored stub
+     `lib/torn-pda-native/auth/native_auth_models.dart` has two added
+     functions (`readNativeApiToken`, `playerIdFromApiToken`) so that
+     `develop` builds. The original is in
+     `~/pda-recordings/backup/`. Keep the change until the maintainer
+     fixes the stub gap.
+   - The new upstream branch `onload-stop-one-wait` (`39609cb1`) is on
+     the fork. The user opens the PR from a laptop. The PR text is
+     `~/pda-recordings/pr-onload-stop.md`. Put the PR number in the
+     table when it exists.
+   - #508 (`161d6d62`) is rebased and force-pushed. It conflicts with
+     `onload-stop-one-wait` at the end of
+     `_injectMissingDocumentStartScripts`. The second one to merge
+     keeps both: first #508's loop, then the flag reset and
+     `afterRecovery`.
+   - Waits on the user: the Greasy Fork pages 2 and up (see the
+     survey above), and the go-ahead for version 17 of the report
+     artifact (the `onLoadStop` results, #505 and #507 merged).
+   - Local only: `perf/analysis-pre-rebase` (the head before the
+     rebase). Delete it after the base runs pass, with the user's
+     approval. The fork has `perf/analysis` `0fc785ca`. The commits
+     after it on `perf/analysis` are notes only. Ask before a push.
+
    Start of the fourteenth session. At the end of the thirteenth
    session:
 
