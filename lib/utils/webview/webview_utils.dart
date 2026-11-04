@@ -30,7 +30,7 @@ class WebViewUtils {
     for (int attempt = 0; attempt < attempts; attempt++) {
       await Future.delayed(Duration(seconds: intervalSeconds));
 
-      final html = await PerfTrace.getHtml(null, webViewController);
+      final html = await PerfTrace.getHtml(null, webViewController, 'waitForElement');
       final document = parse(html);
       final elements = document.querySelectorAll(selector);
 
