@@ -10,10 +10,12 @@ appId: com.manuito.tornpda
     timeout: 60000
 - tapOn:
     id: "button0-profile-8810916"
+# The page goes back 1.5 s after its load, often before Maestro sees the attack page.
+# Wait 10 s for the attack load and the back step. The probe records show both pages.
 - extendedWaitUntil:
-    visible: "Start fight"
-    timeout: 30000
-- takeScreenshot: attack
+    visible: "PDA replay: text that never shows"
+    timeout: 10000
+    optional: true
 - extendedWaitUntil:
     visible:
       id: "button0-profile-8810916"
