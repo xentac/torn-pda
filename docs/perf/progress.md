@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-04 (twelfth session).
+Last update: 2026-11-04 (thirteenth session).
 
 ## State
 
@@ -689,6 +689,45 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    `cbfa3236` and `81da92e3`, it has none, in all 4 runs. In all of
    them, `startProfile` comes late (640 to 800 ms, from `onLoadStop`).
    The last two runs passed (`20261104T021630Z`, `20261104T021755Z`).
+
+   The thirteenth session (2026-11-04). No PR was merged, and
+   `develop` is still at `5ea591af`. The fork has all of
+   `perf/analysis`. The old worktree is removed. The user keeps the
+   five measurement branches until #507 and #508 are merged.
+
+   The `getHtml` counts of `ab0b9192` (2 runs each on
+   `replay-ready-b1`, all passed: attack `20261104T043532Z`,
+   `20261104T043718Z`, faction `20261104T043915Z`,
+   `20261104T044214Z`, crimes `20261104T044501Z`,
+   `20261104T044729Z`). Counts per page record (up to `onLoadStop` +
+   10 s, or the next navigation). The script is
+   `<scratchpad>/gethtml_counts.py`, which uses `read_records` and
+   `page_name` from `summarize.py`.
+
+   | Page | `onLoadStop` calls | `loadStop` copies | `sections` copies | Total |
+   |---|---|---|---|---|
+   | `profiles.php` | 1, 1 | 1, 1 | 2, 2 | 3, 3 |
+   | `page.php?sid=attack` | 1, 1 | 1, 1 | 1, 1 | 2, 2 |
+   | `page.php?sid=attackLog` | 1, 1 | 1, 1 | 1, 1 | 2, 2 |
+   | `factions.php?step=your` | 4, 4 | 4, 4 | 0, 0 | 4, 4 |
+   | `factions.php?step=your&type=N` | 3, 3 | 3, 3 | 0, 0 | 3, 3 |
+   | `page.php?sid=crimes` | 3, 4 | 3, 4 | 0, 0 | 3, 4 |
+
+   No other site counted in these flows (`travelFresh`,
+   `waitForElement` and the dialogs were 0). On the faction and
+   crimes pages, `onLoadStop` fires once for each hash route change
+   (`onUpdateVisitedHistory` 2 to 6 times), and each call copies the
+   whole page again. So `loadStop` is 13 of 17 and 14 of 18 copies
+   in one pass of the three flows (76 to 78 %). The profile record
+   has the second `sections` copy because the attack tap starts in
+   `onProgressChanged` before the next `onLoadStart`.
+
+   The `cb.onLoadStop.wallMs` of each page record is the sum of all
+   its calls. In the two runs: profile 217 and 315 ms, attack 57 and
+   115 ms, attack log 183 and 195 ms. Faction: 408 and 670 ms (4
+   calls). Faction type: 315 and 282 ms (3 calls). Crimes: 1029 and
+   1053 ms (3 and 4 calls). This wall time also has the other awaits of the chain, so
+   the share of the copy and the parse is not known yet.
 
    Start of the thirteenth session. At the end of the twelfth session:
 
