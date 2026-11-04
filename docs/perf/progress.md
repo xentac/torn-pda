@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-04 (thirteenth session).
+Last update: 2026-11-04 (fourteenth session).
 
 ## State
 
@@ -94,7 +94,7 @@ Last update: 2026-11-04 (thirteenth session).
 - All commits of the tenth session are on the fork (pushed on
   2026-11-03 with the user's approval). Ask before each push.
 - The report is published as a shared artifact:
-  https://claude.ai/artifact/GCojySixXsQJxfYYTqNxfK (version 15, 2026-11-04, with a status section and status notes in 1.4 and 1.7 part 4). The source is
+  https://claude.ai/artifact/GCojySixXsQJxfYYTqNxfK (version 16, 2026-11-04, with the `onLoadStop` try in the status row of 1.2). The source is
   `report.md`.
 - Track T (record and replay) works from start to finish on the emulator:
   capture, anonymize, snapshot, automated test run. Three flows pass:
@@ -824,6 +824,105 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    long. So a fix must make fewer round trips, not smaller ones. A
    test on a phone was possible, but the user's phone has the real
    app, and a perf APK replaces it. So we did not run it.
+
+   The fourteenth session (2026-11-04). No PR was merged, and
+   `develop` is still at `5ea591af`. With the user's approval, the fork
+   now has `perf/analysis` (`704b96e1`), `perf/loadstop-info` and
+   `perf/loadstop-info-check`. The report artifact is version 16.
+
+   The round trips in one `onLoadStop` chain (code read of
+   `perf/analysis` `704b96e1`). A renderer trip (R) waits for the
+   page's main thread: `evaluateJavascript`, `callAsyncJavaScript` and
+   the `outerHTML` half of `getHtml`. A native call (N) is answered by
+   the plugin's Java code on the app main thread and does not wait for
+   the page: `getTitle`, `getCookie`, `getCopyBackForwardList`,
+   `requestFocus`, `removeUserScriptsByGroupName` and the `getSettings`
+   half of `getHtml` (see `WebViewChannelDelegate.java` in the plugin).
+   "Guard" means that the snippet already returns at once when it ran
+   in this document.
+
+   | # | Call | Kind | Awaited | When | Guard |
+   |---|---|---|---|---|---|
+   | 1 | `ChatEngine.pageLoadJS` | R | no | Torn page, RC `tornPageRefreshRC`, empty in public builds | not known |
+   | 2 | focusin listener | R | no | default on | yes (`__pdaFocusinAdded`) |
+   | 3 | `chainWebInject` | R | no | default on (`webLiveAllowed`) | yes (`__pdaChainReader`) |
+   | 4 | `_maybeEnsureMinHeight` | R | yes | default off, once per URL | Dart flag |
+   | 5 | `evaluateGreasyForMockVM` | R | no | iOS only | |
+   | 6 | `removeUserScriptsByGroupName`, one per stale group | N | yes, together | Android | |
+   | 7 | probe in `_injectMissingDocumentStartScripts` | R | yes | page has a userscript | |
+   | 8 | each missing start script | R | yes, one by one | rare | yes (`_oncePerDocument`) |
+   | 9 | each end script, full source | R | yes, together | page has end scripts | yes (`_oncePerDocument`) |
+   | 10 | `removeChatJS` | R | no | chat hidden | |
+   | 11, 12 | `chatHighlightJS` and its style | R, R | no | default on, Torn page | 11 no: it replaces its observer and starts a new 20-try poll. 12 yes (style element ID) |
+   | 13 | `addHeightForPullToRefresh` | R | no | default on (`both`) | no |
+   | 14 | `getHtml` (`getSettings`, then `outerHTML`) | N, R | yes | always | |
+   | 15 | `getTitle` | N | yes | no title element | |
+   | 16 | `_pageShows` in `assessTravel`, a waiter of up to 6 s | R | no | always | no |
+   | 17 | `barsDoubleClickRedirectJS` | R | no | Torn page | not known (a remote snippet) |
+   | 18 | full screen, profile age, bazaar, city shop snippets | R | no | some pages or settings | |
+   | 19 | `getCopyBackForwardList` | N | no | vault, armoury, items, factions pages | |
+   | 20 | `getCookie` | N | yes | `restoreSessionCookie`, default off | |
+   | 21 | theme change event | R | no | once, after a theme change | |
+   | 22 | `assessErrorCases` | none, or R after a delay | no | only with a login method | |
+   | 23 | `publishTabState` | R | yes | always | no |
+   | 24 | `requestFocus` | N | no (after the frame) | active tab | |
+
+   So a plain Torn page with the default settings and no userscript
+   makes 9 renderer trips (2, 3, 11, 12, 13, 14, 16, 17, 23). Only 14
+   and 23 are awaited. With userscripts, add the probe and one trip
+   per end script. On the faction and crimes pages the chain runs 3
+   to 4 times for each document: the trace of `20261104T055217Z` has
+   1 `onLoadStart` and 4 `onLoadStop` on `step=your`, and 1 and 3 on
+   `step=your&type=1`. So such a page load makes about 30 to 40
+   renderer trips from `onLoadStop` alone. Each repeat also leaves one
+   more 6-second waiter (16) in the page.
+
+   The first `onLoadStop` of a document waits for the page in the
+   copy (14). The renderer runs trips in the order sent, so the copy
+   also waits for every unawaited snippet sent before it (2, 3, 11,
+   12, 13). It is not known how much of the 100 to 150 ms of the copy
+   (and of the thirteenth-session script) is the page's own work and
+   how much is our snippets.
+
+   Timer plan (a measurement build on `perf/analysis`, not a fix):
+
+   - Wrap each renderer trip of the chain in its own timer
+     (`ols.rt.<name>`), from send to reply. For an unawaited call,
+     attach the timer with `.then`, so the chain does not wait.
+   - Record on each `onLoadStop` whether it is the first of its
+     document or a repeat (a flag set in `onLoadStart`, cleared on the
+     first `onLoadStop`), so that costs split by position.
+   - Send a ping (`performance.now()`) just before the first
+     unawaited snippet, and a second one just before the copy. The
+     send-to-reply time of the first ping is the wait for the page's
+     own work. The difference of the two page clock values is the
+     time that our snippets take in the page.
+   - 2 runs each of `attack`, `faction` and `crimes` on
+     `replay-ready-b1`.
+
+   Proposals, to decide after the timer runs:
+
+   - Skip on a repeat `onLoadStop` of the same document. A Dart flag
+     from `onLoadStart` changes no callback, its order or its count,
+     so it keeps the maintainer's rule. If iOS fires `onLoadStart` on
+     a hash route, the flag never skips there, which is safe. Skip
+     candidates: 2, 3, 11, 12, 13, 16, 17 (if the remote snippet allows it), the
+     probe (7), and 23 when its payload did not change. Keep on a
+     repeat: the title read (the title can change on a route), the
+     URL report, and the end scripts of any group not yet sent in this
+     document. On `develop` without #507, `@match` sees the `#hash`,
+     so a route can change the set of matching scripts. Send only the
+     new groups, not all full sources again.
+   - Merge the unawaited snippets into two evaluations: one for 1 to
+     3, and one for 10 to 13, 17, 18 and 21, so that the order around
+     the end scripts stays. Risks: each part needs its own `try`, so
+     that one error does not stop the rest. A top-level `var` or
+     function declaration acts differently inside a block in sloppy
+     mode. The gain is not known, and the ping data decides if this is
+     worth doing.
+   - Do not merge the probe with the end scripts or the copy. The
+     probe exists so that full sources are not sent again, and the
+     copy is a separate fix that was not sent upstream.
 
    Start of the fourteenth session. At the end of the thirteenth
    session:
