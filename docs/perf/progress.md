@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-04 (fourteenth session).
+Last update: 2026-11-04 (fifteenth session).
 
 ## State
 
@@ -1102,6 +1102,21 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    functions to the ignored stub
    `lib/torn-pda-native/auth/native_auth_models.dart`.
 
+   The base runs of `perf/analysis` `56a2b4e0` (fifteenth session):
+   all 6 passed (`20261104T232016Z` to `20261104T233358Z`). The
+   summaries are in `~/pda-recordings/baselines/base-56a2b4e0/`. This
+   build has no `ols1` timers, so `ols_trips.py` gives only the
+   `onLoadStop` total per page (ms, with the number of calls).
+
+   | Page | `nav.load` median | `onLoadStop`, run 1 | `onLoadStop`, run 2 |
+   |---|---|---|---|
+   | `profiles.php` | 1089 | 668 / 1 | 483 / 1 |
+   | `sid=attack` | 892 | 89 / 1 | 77 / 1 |
+   | `sid=attackLog` | 1173 | 142 / 1 | 215 / 1 |
+   | `step=your` | 1647 | 213 / 2 | 638 / 4 |
+   | `step=your&type=N` | 1386 | 241 / 3 | 388 / 3 |
+   | `sid=crimes` | 955 | 760 / 3 | 1314 / 5 |
+
    Start of the fifteenth session. At the end of the fourteenth
    session:
 
@@ -1523,6 +1538,92 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 4. 16 runs for the profile and faction pages, where the `nav.load` spread is
    over 10 %.
 5. Find why one crimes run went back to the blank page (see the lessons).
+
+### Finding 1.5: the onLoadResource messages
+
+Started on 2026-11-04 (fifteenth session). No code change yet.
+
+How a message travels (plugin `eb8a7c90`, Android). The plugin adds a
+document-start script with a `PerformanceObserver` (without `buffered`).
+For each resource entry, it calls `callHandler('onLoadResource', ...)`.
+Java posts the call to the WebView thread and sends it to Dart on the
+method channel. Dart calls the PDA handler without an await and answers.
+Java then sends one `evaluateJavascript` to the page to resolve the
+promise. So each resource is one channel message and one page trip,
+in the same queue as the `onLoadStop` calls. iOS has the same script.
+
+Measured from the traces of the `56a2b4e0` base runs and the
+`65ace9f9-new` runs (`~/pda-recordings/olr_stats.py`). "Round trip" is
+the time in the page from `callHandler` to the answer, from the probe.
+The round trips overlap, so their sum is not time that a fix saves.
+
+| Page | Messages | Round trip, mean ms | Round trip, max ms | Dart wall ms (sync under 1.5) |
+|---|---|---|---|---|
+| `profiles.php` | 235 to 253 | 50 to 54 | 172 to 328 | 97 to 219 |
+| `sid=attack` | 172 to 204 | 24 to 35 | 62 to 100 | 35 to 82 |
+| `sid=attackLog` | 87 to 88 | 35 to 52 | 68 to 150 | 14 to 52 |
+| `factions.php?step=your` | 270 to 306 | 57 to 81 | 138 to 179 | 137 to 239 |
+| `step=your&type=N` | 250 | 15 to 18 | 251 to 279 | 75 to 225 |
+| `sid=crimes` | 154 to 209 | 45 to 50 | 148 to 169 | 91 to 136 |
+
+- A call that is not in this queue answers in 1 to 7 ms on a quiet
+  page (`callAsyncJavaScript` after 7 s). `PDA_httpGet` waits 24 to
+  145 ms on average in the same first seconds.
+- The handler uses few of the messages. It acts on a resource URL with
+  `trade.php`, `properties.php`, `jailview.php` or `bounties.php`, and
+  on an `xmlhttprequest` to `factions.php`. On these flows, only the
+  faction pages have such resources: about 20 `factions.php` requests
+  in the proxy log, against about 520 messages. The profile, attack
+  and crimes pages have none.
+- Two branches act on any resource: while `_currentUrl` has
+  `trade.php` or `properties.php` (before the section is triggered),
+  and while `_quickItemsFactionTriggered` is set. After the user
+  leaves `factions.php`, the second one is the only code that turns
+  the faction quick items off. A filter must keep both.
+- `webview_simple_dialog.dart` (the captcha dialog) has its own
+  settings and handler. A change in `webview_full.dart` does not
+  touch it.
+
+What the plugin allows:
+
+- A switch at run time: `setSettings` with `useOnLoadResource` sets the
+  page flag `_useOnLoadResource`, and adds or removes the
+  document-start script. Problems: the switch comes from Dart after the
+  navigation starts, so it can be too late for the new document. A
+  script that the switch evaluates in a loaded page misses the resources
+  before it, because the observer has no `buffered`. On iOS,
+  `enablePluginScriptAtRuntime` reads a `false` flag as "not loaded",
+  so off and then on in one page adds a second observer. The removal
+  on iOS rebuilds the user script list. A code comment says that a
+  run-time switch of the AJAX setting broke `onLoadResource` on iOS.
+  The faction armoury is a hash route in `factions.php`. The quick
+  items also need a message on the next page. So the switch saves little.
+- A filter in the plugin: a new setting with URL patterns, used by the
+  observer script before `callHandler`. It needs changes in the Java,
+  Swift and platform interface packages of the maintainer's fork, and
+  a new pin in PDA.
+- A third way, without a plugin change: PDA sets `useOnLoadResource:
+  false` and adds its own document-start script (as
+  `js_bank_vault.dart` does) with the same observer and a filter. It
+  sends through a PDA handler (`addJavaScriptHandler`) to the same
+  Dart code.
+
+The plan (given to the user, waits for the go-ahead):
+
+1. Find the upper bound of the gain. Build `56a2b4e0` with only
+   `useOnLoadResource: false` (the patch is `olr-off.diff` in the
+   fifteenth session scratchpad: one line in `webview_full.dart`).
+   Run 2 each of `attack`, `faction` and `crimes` against the base,
+   in the order A B B A. Compare the bridge round trips, the
+   `onLoadStop` time, long tasks and frame gaps. If the gain is
+   small, stop and send no PR.
+2. If the gain is clear, make the third way on a branch from
+   `master`. The page script sends a message for the five URL
+   patterns and for any resource on `trade.php` and `properties.php`.
+   It also sends the first resource of each page (for the quick items).
+   Then make sure with the same runs that the gain stays.
+3. Write the test plan for Android and iOS: trades, vault, jail,
+   bounties, the faction armoury quick items, and renderer recovery.
 
 ### Fix 1.7, part 1: the end scripts together
 
