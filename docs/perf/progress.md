@@ -630,6 +630,29 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    below 1 ms. Timers in the plugin's Java code were refused, because
    they change the shared pub cache.
 
+   Guard plus skip (branch `perf/start-skip`, `81da92e3`: the guard,
+   the PR #505 cache commit, and "skip a group that is registered
+   with the same source"). The script model keeps the finished start
+   source (storage wrapper, once check, guard), built again only when
+   the body or the guard string changes, so the skip is an
+   `identical` check. `removeAllUserScripts` now also clears the
+   record of registered groups. 8 and 8 alternated runs against
+   `cbfa3236` on `replay-ready-b1-user`, all passed. Medians:
+   `shouldOverrideUrlLoading` 159 to 1.5 ms (attack) and 217 to
+   1.6 ms (attack log), tap to navigation start 168 to 9 ms and 223
+   to 9 ms, tap to DOMContentLoaded 1075 to 921 ms (-14 %) and 1606
+   to 1407 ms (-12 %). `nav.dcl`, `nav.load` and `us.start.start` do
+   not change (p > 0.19). So the skip gives the same gain as
+   register-all, without the parse of scripts that do not match.
+
+   Memory: the cache holds one finished copy per start script, shared
+   by all tabs. The plugin's Dart controller keeps every added
+   `UserScript` in its `_userScripts` list while it is registered, so
+   a registered source stays in Dart memory in any design. A design
+   that builds the string per registration (no cache) holds one copy
+   per tab instead. The cache only costs extra for a start script
+   that no tab has registered at that moment.
+
    Start of the twelfth session. At the end of the eleventh session:
 
    - `cond-sources-cache` (`d7165545`, on `develop` at `5ea591af`) is
