@@ -1076,6 +1076,20 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
      then make the clean branch from `master` without the timers, and
      write the iOS test plan.
 
+   The `#hash` survey of Greasy Fork (asked by the user, for the
+   talk with the maintainer about `74a51407`). The user's view: PDA
+   and Tampermonkey are two platforms for one userscript standard.
+   Greasy Fork answers scripted requests with a Cloudflare 403, so
+   the user downloads the list pages
+   (`greasyfork.org/en/scripts/by-site/torn.com.json?page=N`) in a
+   browser. The headers (`.meta.js` on `update.greasyfork.org`)
+   download with wget. The script is `gf-fetch.sh` in the scratchpad
+   of this session (not kept). Page 1 (100 scripts, the most installed)
+   has one script with a `#` in `@match`: "Torn Rigs Layout Switcher"
+   (483183, 953 installs), `page.php?sid=crimes#/cracking` and the
+   same for `loader.php`. No `#` in `@include` or `@exclude` there.
+   To do: the other pages.
+
    Start of the fourteenth session. At the end of the thirteenth
    session:
 
