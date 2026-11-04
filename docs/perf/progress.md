@@ -864,12 +864,12 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    | 20 | `getCookie` | N | yes | `restoreSessionCookie`, default off | |
    | 21 | theme change event | R | no | once, after a theme change | |
    | 22 | `assessErrorCases` | none, or R after a delay | no | only with a login method | |
-   | 23 | `publishTabState` | R | yes | always | no |
+   | 23 | `publishTabState` | R | no | always | no |
    | 24 | `requestFocus` | N | no (after the frame) | active tab | |
 
    So a plain Torn page with the default settings and no userscript
-   makes 9 renderer trips (2, 3, 11, 12, 13, 14, 16, 17, 23). Only 14
-   and 23 are awaited. With userscripts, add the probe and one trip
+   makes 9 renderer trips (2, 3, 11, 12, 13, 14, 16, 17, 23). Only the
+   copy (14) is awaited. With userscripts, add the probe and one trip
    per end script. On the faction and crimes pages the chain runs 3
    to 4 times for each document: the trace of `20261104T055217Z` has
    1 `onLoadStart` and 4 `onLoadStop` on `step=your`, and 1 and 3 on
@@ -923,6 +923,76 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    - Do not merge the probe with the end scripts or the copy. The
      probe exists so that full sources are not sent again, and the
      copy is a separate fix that was not sent upstream.
+
+   The timer runs (same session, with the user's approval). The
+   build is `perf/ols-trips` `638cd837` (local only), APK
+   `~/pda-recordings/apks/638cd837.apk`. It times each renderer trip
+   of the chain as `ols1.<name>` on the first `onLoadStop` of a
+   document and `ols2.<name>` on a repeat. Four pings
+   (`performance.now()`) give the page clock: `ping0` before item 2,
+   `ping1` after item 3, `ping2` after the end scripts, `ping3` before
+   the copy. `pagePreUs`, `pageMidUs` and `pagePostUs` are the page
+   clock between them. The pings are not awaited. 2 runs of each flow
+   on `replay-ready-b1`, all 6 passed (`20261104T081212Z` to
+   `20261104T082357Z`). The script is `~/pda-recordings/ols_trips.py`.
+
+   First chain of each page, two runs (ms):
+
+   | Page | `ping0` | probe (7) | end scripts (9) | copy (14) | page time of 2, 3 | page time of 11 to 13 |
+   |---|---|---|---|---|---|---|
+   | `profiles.php` | 143, 123 | 142, 125 | 170, 271 | 371, 167 | 1, 3 | 183, 2 |
+   | `sid=attack` | 39, 25 | 39, 26 | 35, 15 | 34, 28 | 4, 3 | 7, 4 |
+   | `sid=attackLog` | 12, 95 | 15, 95 | 22, 80 | 84, 54 | 2, 3 | 13, 3 |
+   | `step=your` | 78, 55 | 56, 42 | 37, 34 | 51, 42 | 7, 7 | 10, 3 |
+   | `step=your&type=N` | 46, 83 | 69, 65 | 33, 12 | 37, 65 | 4, 1 | 8, 5 |
+
+   On crimes, two chains of the hub fall into one record, and the
+   probe took up to 353 and 302 ms. A repeat chain costs, on average
+   per call: probe 59 to 101 ms, end scripts 20 to 107 ms, copy 25 to
+   56 ms (faction and crimes).
+
+   What the timers show:
+
+   - Each awaited trip costs one full wait for the page, 12 to 370 ms
+     on the first chain. The page is busy between our trips (its own
+     work after `load`), so the next awaited trip waits again. The
+     first chain has three awaited trips in a row with userscripts:
+     probe, end scripts, copy. On the faction pages,
+     `_maybeEnsureMinHeight` is a fourth (18 to 39 ms), so the
+     snapshot has that setting on.
+   - An unawaited trip costs no extra wait. `focusin`, `chain` and
+     `ping1` finish within 2 ms of `ping0`, and the copy finishes 1 to
+     3 ms after `ping3`. So the copy itself is cheap once the page is
+     free, which agrees with the thirteenth session.
+   - Our unawaited snippets take little page time: 1 to 15 ms for 2
+     and 3, and 1 to 36 ms for 11 to 13 (one 183 ms outlier, which
+     can include the page's own work).
+   - So merging the unawaited snippets gains nothing. Drop that
+     proposal.
+   - The end scripts run only after the probe returns. So on the
+     first chain they start one full wait later than they could:
+     15 to 350 ms on these pages. This is the user-visible cost,
+     for users with userscripts.
+   - On a repeat chain, the probe and the end scripts are two
+     awaited trips that do nothing (the scripts already ran), and the
+     route title comes after them. Skipping them makes the title come
+     about 80 to 200 ms sooner per repeat. Nothing else that the user
+     sees waits on a repeat chain.
+
+   New proposals:
+
+   - A. Send the end scripts right after the probe, without waiting
+     for its answer. Each end script then checks in the page that the
+     handler bundle ran (its `__pdaOnce` key). If not, it waits for a
+     page event that the recovery path sends after it injects the
+     missing scripts. The end scripts start one wait sooner. The
+     missing scripts are rare, so the slow path almost never runs.
+   - B. On a repeat chain, skip the probe and the end scripts that
+     were already sent in this document (a Dart set per document,
+     cleared in `onLoadStart`). Send only new groups. Keep the title
+     read.
+   - Measure A as `probeStart` of a `document-end` test script, and B
+     as the time from a repeat `onLoadStop` to the title report.
 
    Start of the fourteenth session. At the end of the thirteenth
    session:
