@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-03 (twelfth session).
+Last update: 2026-11-04 (twelfth session).
 
 ## State
 
@@ -689,6 +689,35 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    `cbfa3236` and `81da92e3`, it has none, in all 4 runs. In all of
    them, `startProfile` comes late (640 to 800 ms, from `onLoadStop`).
    The last two runs passed (`20261104T021630Z`, `20261104T021755Z`).
+
+   Start of the thirteenth session. At the end of the twelfth session:
+
+   - Open PRs: #505 (source cache), #507 (`@match`), #508 (skip and
+     page check, on #505 and #507). Run the `gh pr list` command in
+     "State" and update the table and the status section of
+     `report.md` (and the artifact) if one was merged.
+   - Local commits on `perf/analysis` that are not on the fork: from
+     `7de9b3f6` to the end. Ask the user before a push.
+   - Local measurement branches: `perf/match-semantics`,
+     `perf/start-guard`, `perf/start-skip`, `perf/start-register-all`,
+     `perf/reg-timing`. Ask the user before you delete them.
+   - Remove the worktree `<old scratchpad>/up` (`git worktree list`,
+     then `git worktree remove --force`).
+   - The next task (the user's choice): fewer `getHtml` calls. The user
+     stopped it at the start, to do it in a new session. Propose a
+     change before you write it. Done so far: `ab0b9192` labels each
+     `PerfTrace.getHtml` call, so the trace has `counts.getHtml.<site>`
+     next to the total. The APK is `~/pda-recordings/apks/ab0b9192.apk`.
+     No run was made with it. First step: 2 runs each of `attack`,
+     `faction` and `crimes` on `replay-ready-b1` (each flow with its
+     own recording plus `anon/onboarding.mitm`), then the counts per
+     site and per page. A code read so far: the `onLoadStop` copy
+     (`'loadStop'`) runs on every page. On a plain page, only the title
+     (`_getPageTitle`, one `querySelector`), the first travel check
+     (`assessTravel`, one `querySelectorAll`) and the `loader.php`
+     redirect use it. A small `evaluateJavascript` can give the title
+     and the travel flag, and a full copy is then needed only abroad
+     and on `loader.php`.
 
    Start of the twelfth session. At the end of the eleventh session:
 
