@@ -20,6 +20,23 @@ The app reads data from the page in about 75 places, with six different methods.
 
 The user prompt that started this work was cut off at "a similar app that". This report reads it as "a similar app that is as fast as Firefox with Tampermonkey, with the same features".
 
+## Status on 2026-11-04
+
+The maintainer's commit `610af44f` ("browser speed", 2026-11-02) and our pull requests already fix part of this report. The findings below keep their first text, with a status line where the state changed.
+
+| Finding | Status |
+|---|---|
+| 1.1 Travel check | Fixed upstream in `610af44f` (an observer in the page). #501 (merged) adds a counter to it. |
+| 1.2 Page reads | The `onLoadStart` copy now runs only on `loader.php` (`610af44f`). The other reads are open (track P). |
+| 1.3 Progress bar | Fixed upstream in `610af44f`: a `ValueNotifier`, and no animation when the bar is off or the tab is not on screen. |
+| 1.4 Link navigations | The iframe fast path and the `http` race are fixed upstream in `610af44f`. `onLoadStart` registers the start scripts only after they were lost. #508 (open) registers a start script only when it changed. Track B2 is open. |
+| 1.5, 1.6 | Open (tracks P and D). |
+| 1.7 Userscripts | Part 1: #504 (merged). Part 2: fixed upstream in `610af44f` (only registered groups). Part 3: #505 (open). Part 4: #508 (open), with the `@match` fix #507 (open). The pattern cache is upstream. |
+| 1.8 Platform-ready wait | #502 (merged). |
+| 1.9 HEAD request | Open (track D). |
+| Tier 2 | Fixed upstream in `610af44f`: the attack condition, the terminal listener (`listen: false`, at most 500 entries), the show-case timer, the `getUrl()` per progress event and the repeated `endRefreshing()`. The other rows are open. |
+| Tier 3 | Open. |
+
 ## Scope and evidence
 
 Read this section before you use any number in this report.
@@ -147,6 +164,8 @@ Fix, short term: return "allow" at once for iframes. If the set of matching scri
 
 Measure with: `tap.tapToNavStart` in the probe, for PDA and for Firefox, and `cb.shouldOverrideUrlLoading(preNav)` in the Dart trace.
 
+Status, 2026-11-04: the iframe fast path, the second registration in `onLoadStart` and the `http` race are fixed on `develop`. The remove-then-add of every matching start script stayed, and it held each link navigation for 160 to 220 ms in the replay (`cb.shouldOverrideUrlLoading(preNav)`, with one user's 9 start scripts). #508 adds a script only when its source changed. After it, the callback takes about 1.5 ms, and `tap.tapToNavStart` falls from about 170 ms to 9 ms.
+
 #### 1.5 Each subresource sends a message through the bridge
 
 The app sets `useOnLoadResource: true` (`webview_full.dart:639`). The plugin then injects a `PerformanceObserver` into every frame. For each resource, the observer calls `callHandler`. The message goes as JSON through a synchronous Java bridge call, then to the main looper, then over the method channel to Dart. An `evaluateJavascript` call then resolves the promise. The plugin setting `pluginScriptsForMainFrameOnly` is false by default, so iframes also get the observer.
@@ -181,6 +200,10 @@ This cost applies to users with userscripts. Many players install PDA for its us
 2. Before the first end script runs, `onLoadStop` awaits many `removeUserScriptsByGroupName` calls in sequence (`webview_full.dart:1913`). It makes one call for each script that does not match the page, including disabled scripts. With 40 installed scripts and 3 matches, that is 37 round trips. On iOS, each removal rebuilds the whole `WKUserContentController` and sends every script source to the web content process again. It does this also for a removal that matched nothing.
 3. `adaptSource` in `userscripts_provider.dart` copies each matching script and scans its full source three times, on every call. `getCondSources` calls it, and it runs three times or more per page load, so each start script is adapted twice. With one user's 44 enabled scripts (4.6 MB), this took 16 to 31 ms per page load in a host benchmark. It runs on the UI isolate, and one of the calls comes before `shouldOverrideUrlLoading` returns. Also, `getCondSources` returns an `UnmodifiableListView` over a lazy `where` and `map`, so each read of `length` runs the filter again. This costs only microseconds. `matchesTarget` in `userscript_model.dart` compiled new `RegExp` objects for each `@match` pattern on every call (fixed upstream in `610af44f`).
 4. A document-start script that matched the previous page stays registered until the next `onLoadStop`. So it also runs on the next page, and its `@match` is not tested again. This is a correctness bug, and it wastes work.
+
+Status of part 4, 2026-11-04: `610af44f` removes the stale scripts before each navigation that the app sees. Android does not report form POSTs and history steps (`history.back()` in the page, and the native `goBack()` from a trade to the vault) to `shouldOverrideUrlLoading`. In those cases, the old page's start scripts still ran on the new page. A replay test with `history.back()` showed this. #508 makes each start script test its own `@match` in the page, so a stale script skips itself. The new page's own start scripts still start late in those cases, from `onLoadStop`. #507 makes `@match` work as in Tampermonkey: the `#hash` is not part of the match, `http*://` works, and a host without a port matches any port.
+
+A test of the alternative, to register every start script once and keep it, gave the same tap gain as #508. But each page then parses every start script. With 4.6 MB of start scripts, `nav.dcl` was about 100 ms later and the longest task about 100 ms longer. #508 registers only the scripts of the page.
 
 Fix, short term: run all end scripts first, in one `evaluateJavascript`. Remove only the groups that are registered. Cache compiled patterns. Cache the adapted source of each script, and make `getCondSources` return a real list. Fix, long term: track B.
 
@@ -416,7 +439,7 @@ These were considered and are not recommended, so that nobody needs to ask again
 | B1. Userscript quick fixes | 1.8 gate and duplicate promise, end scripts first in one call, remove only registered groups, cache patterns, a real list from `getCondSources` | 0 | `bridge.firstAt` near `probeStart`. `cb.onLoadStop.wallMs` lower than baseline. |
 | R. Split `webview_full.dart` | Move code into `part of` files without changes: navigation callbacks, resource callbacks, section reads, userscripts, build. Each callback becomes a one-line call to a named method. Agree this with the maintainer and do it right after a release. | A1 merged (smaller conflicts) | No behavior change. The diff is moves only. |
 | P. Page data layer | The design above, with shadow mode first, then one section at a time behind a Remote Config flag. Includes the filtered resource observer from 1.5 and the shared observer from 1.6. | R | `counts.getHtml` equals 0. No `onLoadResource` messages on plain pages. No feature differences in shadow mode. |
-| B2. Document-start loader | Register once, match in JavaScript, run end scripts on `DOMContentLoaded`. Then `regexToAllowSyncUrlLoading` for Torn URLs. | B1, R | Script `probeStart` within 50 ms of Tampermonkey. `tap.tapToNavStart` within 50 ms of the control app. |
+| B2. Document-start loader | Match in JavaScript (done in #508). Run end scripts on `DOMContentLoaded`. Do not register every script once: each page then parses all of them (see 1.7). Then `regexToAllowSyncUrlLoading` for Torn URLs. | B1, R | Script `probeStart` within 50 ms of Tampermonkey. `tap.tapToNavStart` within 50 ms of the control app. |
 | C. Widget isolation | Build `InAppWebView` once. Split the browser chrome into small widgets. Selectors in place of whole-provider listening. `TickerMode` for hidden tabs and the drawer. `GetBuilder` IDs. Settings through `setSettings`. | A1 (progress bar), R | `frames.uiOver16` and `lag.over50` during loads and scrolls. `janky_pct` in `adb-bench.sh`. |
 | D. Plugin fork patches | Filter the `onLoadResource` observer by URL. Skip the content blocker HEAD request (1.9). Send scroll and console events only to a listener. A batch API for scripts. Make `pluginScriptsForMainFrameOnly: true` an option behind Remote Config, because it removes the bridge from iframes and can break scripts there. | None | Platform channel message count per page. `nav.load` with chat hidden. |
 | W. WebView engine interface | A narrow interface for the page data layer and the loader. A second implementation, either a thin engine layer on the fork or `webview_flutter` with a companion plugin (see "Option: move to `webview_flutter`"). Both behind a Remote Config flag. | P, B2, T | No differences in the behavioral diff. Lower `tap.tapToNavStart` and platform channel message count than the fork. |
