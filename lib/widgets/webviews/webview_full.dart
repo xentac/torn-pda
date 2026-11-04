@@ -244,6 +244,7 @@ class WebViewFullState extends State<WebViewFull>
   late final String _tabUid;
 
   bool _heightExtendInjected = false;
+  int _olsStops = 0;
 
   // Serializes concurrent _addUserScriptsAvoidDuplicates calls so remove+add cant' cause issues
   Future<void> _scriptLock = Future.value();
@@ -1720,6 +1721,7 @@ class WebViewFullState extends State<WebViewFull>
           },
           onLoadStart: (c, uri) {
             PerfTrace.navStart(_tabUid, uri.toString());
+            _olsStops = 0;
             PerfTrace.cb(_tabUid, 'onLoadStart', () async {
               log("🌐 onLoadStart: $uri", name: "WEBVIEW FULL");
               if (_markInitialLoadStarted()) return;
@@ -1878,6 +1880,9 @@ class WebViewFullState extends State<WebViewFull>
             if (!mounted) return;
             _setReloadInProgress(false);
             if (_isParkingBlank(uri)) return;
+            final String ols = _olsStops++ == 0 ? 'ols1' : 'ols2';
+            PerfTrace.count(_tabUid, '$ols.calls');
+            final p0 = _olsPing(c, '$ols.ping0');
             if (_webViewProvider.tornPageRefreshRC && isTornHost(uri?.host) && ChatEngine.pageLoadJS.isNotEmpty) {
               c.evaluateJavascript(source: ChatEngine.pageLoadJS);
             }
@@ -1895,8 +1900,11 @@ class WebViewFullState extends State<WebViewFull>
                 // We also need to allow this from the Firebase Remote Config just
                 // in case it interferes with other HTML elements
                 _settingsProvider.browserCenterEditingTextFieldRemoteConfigAllowed) {
-              c.evaluateJavascript(
-                source: '''
+              PerfTrace.cb(
+                _tabUid,
+                '$ols.focusin',
+                () => c.evaluateJavascript(
+                  source: '''
                     if (!window.__pdaFocusinAdded) { window.__pdaFocusinAdded = true;
                     window.addEventListener('focusin', (event) => {
                       const target = event.target;
@@ -1918,14 +1926,22 @@ class WebViewFullState extends State<WebViewFull>
                     });
                     }
                   ''',
+                ),
               );
             }
 
             if (_chainWebAllowed) {
-              c.evaluateJavascript(source: chainWebInject(_webViewProvider.isTabUidOnScreen(_tabUid)));
+              PerfTrace.cb(
+                _tabUid,
+                '$ols.chain',
+                () => c.evaluateJavascript(source: chainWebInject(_webViewProvider.isTabUidOnScreen(_tabUid))),
+              );
             }
 
-            await _maybeEnsureMinHeight(c);
+            final p1 = _olsPing(c, '$ols.ping1');
+            _olsPageDelta('$ols.pagePreUs', p0, p1);
+
+            await PerfTrace.cb(_tabUid, '$ols.minHeight', () => _maybeEnsureMinHeight(c));
 
             _firstLoadCompleted = true;
 
@@ -1970,15 +1986,25 @@ class WebViewFullState extends State<WebViewFull>
 
               // Guarantee the handler bundle and this page's document-start scripts
               // are present whenever the page runs any userscript (start or end)
-              await _injectMissingDocumentStartScripts(c, uri.toString());
+              await PerfTrace.cb(
+                _tabUid,
+                '$ols.injectMissing',
+                () => _injectMissingDocumentStartScripts(c, uri.toString()),
+              );
 
               // We need to inject directly, otherwise these scripts will only load in the next page visit
               // Guard once-per-document so hash navigation (which re-fire onLoadStop) don't re-run END scripts
               // Sent together, they still run in order
-              await Future.wait(
-                scriptsToAdd.map(
-                  (script) =>
-                      webViewController!.evaluateJavascript(source: _oncePerDocument(script.groupName, script.source)),
+              PerfTrace.count(_tabUid, '$ols.endScriptsN', scriptsToAdd.length);
+              await PerfTrace.cb(
+                _tabUid,
+                '$ols.endScripts',
+                () => Future.wait(
+                  scriptsToAdd.map(
+                    (script) => webViewController!.evaluateJavascript(
+                      source: _oncePerDocument(script.groupName, script.source),
+                    ),
+                  ),
                 ),
               );
 
@@ -1991,17 +2017,28 @@ class WebViewFullState extends State<WebViewFull>
                 log("Added scripts in shouldOverride: $addList");
               }
 
+              final p2 = _olsPing(c, '$ols.ping2');
               hideChatOnLoad();
-              _highlightChat();
+              PerfTrace.cb(_tabUid, '$ols.highlight', () => _highlightChat());
 
               // If we are using pull-to-refresh in a short page (that does not scroll), add a bit of body
               // height so that the pull-to-refresh triggers properly
               if (_settingsProvider.browserRefreshMethod != BrowserRefreshSetting.icon) {
-                _addExtraHeightForPullToRefresh();
+                PerfTrace.cb(_tabUid, '$ols.pullHeight', () => _addExtraHeightForPullToRefresh());
               }
 
+              final p3 = _olsPing(c, '$ols.ping3');
+              _olsPageDelta('$ols.pageMidUs', p1, p2);
+              _olsPageDelta('$ols.pagePostUs', p2, p3);
               final html = await PerfTrace.cb(
-                  _tabUid, 'loadStop.copy', () => PerfTrace.getHtml(_tabUid, webViewController, 'loadStop'));
+                _tabUid,
+                '$ols.copy',
+                () => PerfTrace.cb(
+                  _tabUid,
+                  'loadStop.copy',
+                  () => PerfTrace.getHtml(_tabUid, webViewController, 'loadStop'),
+                ),
+              );
               PerfTrace.count(_tabUid, 'loadStop.htmlKB', (html?.length ?? 0) ~/ 1024);
               final document = PerfTrace.cbSync(_tabUid, 'loadStop.parse', () => parse(html));
 
@@ -2017,7 +2054,7 @@ class WebViewFullState extends State<WebViewFull>
               }
 
               _travelHandler?.assessTravel(document);
-              _assessGeneral(document);
+              _assessGeneral(document, ols: ols);
 
               // This is used in case the user presses reload. We need to wait for the page
               // load to be finished in order to scroll
@@ -2076,7 +2113,7 @@ class WebViewFullState extends State<WebViewFull>
               // the checks performed in this method
             }
 
-            publishTabState();
+            PerfTrace.cb(_tabUid, '$ols.publishTabState', () => publishTabState());
 
             // Re-grant focus after navigation / back-forward
             await _restoreNativeWebViewFocus();
@@ -2735,8 +2772,21 @@ class WebViewFullState extends State<WebViewFull>
     return false;
   }
 
-  void _addExtraHeightForPullToRefresh() {
-    webViewController!.evaluateJavascript(source: addHeightForPullToRefresh());
+  Future<dynamic> _addExtraHeightForPullToRefresh() {
+    return webViewController!.evaluateJavascript(source: addHeightForPullToRefresh());
+  }
+
+  // Perf builds: the page clock, to split the page time between the pings
+  Future<dynamic>? _olsPing(InAppWebViewController c, String name) =>
+      PerfTrace.enabled ? PerfTrace.cb(_tabUid, name, () => c.evaluateJavascript(source: 'performance.now()')) : null;
+
+  void _olsPageDelta(String name, Future<dynamic>? a, Future<dynamic>? b) {
+    if (a == null || b == null) return;
+    Future.wait([a, b]).then((v) {
+      if (v[0] is num && v[1] is num) {
+        PerfTrace.count(_tabUid, name, (((v[1] as num) - (v[0] as num)) * 1000).round());
+      }
+    }, onError: (_) {});
   }
 
   Future removeAllUserScripts() async {
@@ -3066,7 +3116,7 @@ class WebViewFullState extends State<WebViewFull>
     _webViewProvider.reportTabPageTitle(widget.key, _pageTitle);
   }
 
-  void _highlightChat() {
+  Future<void> _highlightChat() async {
     if (!_currentUrl.contains('torn.com')) return;
 
     final intColor = Color(_settingsProvider.highlightColor);
@@ -3077,10 +3127,12 @@ class WebViewFullState extends State<WebViewFull>
     final String hlMap = jsonEncode([UserHelper.playerName, ..._settingsProvider.highlightWordList]);
 
     if (_settingsProvider.highlightChat) {
-      webViewController!.evaluateJavascript(source: chatHighlightJS(highlights: hlMap));
-      webViewController!.evaluateJavascript(
-        source: chatHighlightStyleJS(background: background, senderColor: senderColor),
-      );
+      await Future.wait([
+        webViewController!.evaluateJavascript(source: chatHighlightJS(highlights: hlMap)),
+        webViewController!.evaluateJavascript(
+          source: chatHighlightStyleJS(background: background, senderColor: senderColor),
+        ),
+      ]);
     }
   }
 
@@ -3771,11 +3823,11 @@ class WebViewFullState extends State<WebViewFull>
 
   /// Note: several other modules are called in onProgressChanged, since it's
   /// faster. The ones here probably would not benefit from it.
-  Future _assessGeneral(dom.Document? document) async {
+  Future _assessGeneral(dom.Document? document, {String? ols}) async {
     _assessBackButtonBehavior();
     _assessBazaarOwn();
     _assessBazaarOthers();
-    _assessBarsRedirect();
+    _assessBarsRedirect(ols: ols);
     _assessExitFullScreenScript();
     _assessProfileAgeToWords();
     _assessBugReportsWarning();
@@ -5084,10 +5136,11 @@ class WebViewFullState extends State<WebViewFull>
     webViewController?.evaluateJavascript(source: hospitalTimerJS(until: until));
   }
 
-  Future _assessBarsRedirect() async {
+  Future _assessBarsRedirect({String? ols}) async {
     final inTorn = _currentUrl.contains("torn.com");
     if (inTorn) {
-      webViewController?.evaluateJavascript(source: barsDoubleClickRedirectJS());
+      final f = webViewController?.evaluateJavascript(source: barsDoubleClickRedirectJS());
+      if (ols != null && f != null) PerfTrace.cb(_tabUid, '$ols.bars', () => f);
     }
   }
 
