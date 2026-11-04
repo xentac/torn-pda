@@ -653,6 +653,36 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    per tab instead. The cache only costs extra for a start script
    that no tab has registered at that moment.
 
+   The PR branches (thirteenth step of part 4, same session). In the
+   worktree `<scratchpad>/up` (copy the ignored `lib/config` and
+   `android` stubs into a new worktree before `flutter test`):
+
+   - `match-semantics` `787b2406` on `develop` `5ea591af`: PR A, only
+     the `@match` fix and its 4 tests (52 tests in the file pass).
+     Draft: `~/pda-recordings/pr-drafts/pr-match-semantics.md`.
+   - `start-guard` `9b523b82`: PR B, on `match-semantics` plus the
+     PR #505 commit (`c3f53ace`, the same change as `d7165545`). One
+     commit: the guard, the skip with the cached start source, and a
+     test of the cache (same string, new string after a key or
+     `@match` change). It also clears the registered sources in
+     `onRenderProcessGone` and `onWebContentProcessDidTerminate`. 97
+     model tests pass. Draft:
+     `~/pda-recordings/pr-drafts/pr-start-guard.md`.
+
+   The `history.back()` test: snapshot `replay-ready-b1-back`
+   (`replay-ready-b1-notabs` plus `perf-back-once`, added with
+   `add-back-once.yaml`, then `open-blank.yaml`). The flow is
+   `page-back.yaml`, with `anon/attack.mitm`. The script goes back
+   1.5 s after the attack page loads, often before Maestro sees that
+   page, so the flow waits 10 s and does not look for "Start fight".
+   The script is in the snapshot: a change to the file needs a new
+   snapshot. Results (scratchpad `backcheck.py` on `perf.txt`): on
+   `cd6ed330`, the profile after the back step has `startPage` (the
+   stale attack-page script, 285 to 290 ms) in all 4 runs. On
+   `cbfa3236` and `81da92e3`, it has none, in all 4 runs. In all of
+   them, `startProfile` comes late (640 to 800 ms, from `onLoadStop`).
+   The last two runs passed (`20261104T021630Z`, `20261104T021755Z`).
+
    Start of the twelfth session. At the end of the eleventh session:
 
    - `cond-sources-cache` (`d7165545`, on `develop` at `5ea591af`) is
