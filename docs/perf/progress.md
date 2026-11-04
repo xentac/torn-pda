@@ -760,6 +760,30 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
      test page must put the test script in the head, because the
      script text in the body contains the error strings.
 
+   The faction result: 8 and 8 alternated runs of `de8a6221` and
+   `2c76a481` on `replay-ready-b1`, all 16 passed (from
+   `20261104T055217Z` to `20261104T064403Z`). Medians per page
+   record:
+
+   | Page | Base copy | Base parse | Fix script | `onLoadStop` wall | p |
+   |---|---|---|---|---|---|
+   | `step=your` | 115 ms (3.5 copies, 516 KB) | 40 ms | 101 ms | 471 to 498 ms | 0.72 |
+   | `step=your&type=N` | 91 ms (3 copies, 399 KB) | 25 ms | 70 ms | 318 to 259 ms (-19 %) | 0.05 |
+
+   The script call takes almost as long as the copy, because both
+   are one `evaluateJavascript` round trip. The wait is for the page's
+   main thread, not for the size of the data. So the fix removes the
+   copies (0 `getHtml` in place of 3 to 4 per page). It also removes
+   the parse on the UI isolate (25 to 40 ms per page). It does not
+   remove the round trip.
+   `dart.lag.totalMs` goes from 704 to 675 ms (p 0.46) and from 315 to
+   271 ms (p 0.08). `nav.dcl` and `nav.load` do not change. The end
+   userscripts run before the copy in `onLoadStop`, so the copy never
+   delayed them. `loadStop.errorCases` is 0.3 ms in both builds,
+   because the replay user has no login method and the check returns
+   at once. So the cost of the two `innerHtml` copies for a user with
+   a login method is not measured.
+
    Start of the thirteenth session. At the end of the twelfth session:
 
    - Open PRs: #505 (source cache), #507 (`@match`), #508 (skip and
