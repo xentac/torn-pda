@@ -613,6 +613,23 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    DOMContentLoaded is then still shorter on the attack page, and
    about the same on the others.
 
+   Where the per-tap registration time goes (measurement branch
+   `perf/reg-timing`, `47aaa518`, 3 runs on each snapshot, 6 taps
+   each). The record is `PDA-PERF-REG` in `logcat.txt`, and the
+   scratchpad tool `reg.py` joins it. On each tap, the attack pages
+   match 6 start scripts (646 KB), and all 6 are already registered.
+   `_addUserScriptsAvoidDuplicates` still removes and adds all 6
+   again. Medians on the user snapshot (the stress snapshot is the
+   same, because its scripts match no page): the whole step 126 ms
+   (63 to 175), the wrap into `_guardedOnce` 16 ms, the 6 removes
+   28 ms (4 to 65), the 6 sequential `addUserScript` calls 70 ms (41
+   to 95). The message encoding is only 2 ms of the add, and the time
+   of one call does not follow its size (a 1 KB script took 45 ms
+   once). So most of the time is the wait for the Android main thread
+   and the native work. The handler check and the stale removal are
+   below 1 ms. Timers in the plugin's Java code were refused, because
+   they change the shared pub cache.
+
    Start of the twelfth session. At the end of the eleventh session:
 
    - `cond-sources-cache` (`d7165545`, on `develop` at `5ea591af`) is
