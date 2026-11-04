@@ -729,6 +729,37 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    1053 ms (3 and 4 calls). This wall time also has the other awaits of the chain, so
    the share of the copy and the parse is not known yet.
 
+   The user approved the fix of the `loadStop` copy (same session).
+   The `sections` copy stays for a later fix, because six handlers
+   take its parsed document. The repeated `onLoadStop` calls on hash
+   routes stay, because the title can change on a route.
+
+   - `perf/analysis` `de8a6221` times the copy (`loadStop.copy`), the
+     parse (`loadStop.parse`) and `assessErrorCases`
+     (`loadStop.errorCases`), and counts `loadStop.htmlKB`. It is the
+     base APK for this fix.
+   - `perf/loadstop-info` `2c76a481` is the fix. One
+     `evaluateJavascript` (`pageInfoJS` in
+     `lib/utils/js_snippets/js_page_info.dart`) returns the title
+     element's inner HTML, the travel flag, the login form flag and
+     the error string flag. The full copy stays for `loader.php` and
+     for a travel page. If the script fails, the code also takes the
+     full copy. `assessTravel` takes a
+     null document. `assessErrorCases` keeps its signature (the
+     provider calls it) and calls the new `_assessErrorFlags`.
+     `_getPageTitle` calls the new `_pageTitleFrom`. Its timer is
+     `loadStop.info`.
+   - `perf/loadstop-info-check` `0d81cb9e` also takes the full copy
+     and compares it with the script result (`PDA-PERF-INFO` lines in
+     `logcat.txt`). One run of each flow passed
+     (`20261104T054334Z`, `20261104T054522Z`, `20261104T054830Z`).
+     All 29 `onLoadStop` calls gave the same result. All flags were
+     false in these flows, so headless Chrome ran the script on 8
+     small test pages: both title selectors, both travel selectors,
+     the login form and both error strings gave the right flags. A
+     test page must put the test script in the head, because the
+     script text in the body contains the error strings.
+
    Start of the thirteenth session. At the end of the twelfth session:
 
    - Open PRs: #505 (source cache), #507 (`@match`), #508 (skip and
