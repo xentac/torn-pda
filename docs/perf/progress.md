@@ -572,7 +572,7 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 
    The APKs are `~/pda-recordings/apks/cbfa3236.apk` and `ab0accf5.apk`.
    The two snapshots come from `replay-ready-b1`, with the preferences
-   file changed by the scratchpad tool `add_scripts.py` (a new
+   file changed by `tools/perf/add_scripts.py` (a new
    `pda_userScriptsList` record, `PDA_B64:` plus base64 JSON, the last
    record wins). The manual way is PDA's own script import. The
    export has API keys, so the tool removes the custom keys and the
@@ -619,7 +619,7 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    Where the per-tap registration time goes (measurement branch
    `perf/reg-timing`, `47aaa518`, 3 runs on each snapshot, 6 taps
    each). The record is `PDA-PERF-REG` in `logcat.txt`, and the
-   scratchpad tool `reg.py` joins it. On each tap, the attack pages
+   tool `tools/perf/reg_records.py` joins it. On each tap, the attack pages
    match 6 start scripts (646 KB), and all 6 are already registered.
    `_addUserScriptsAvoidDuplicates` still removes and adds all 6
    again. Medians on the user snapshot (the stress snapshot is the
@@ -683,7 +683,7 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    1.5 s after the attack page loads, often before Maestro sees that
    page, so the flow waits 10 s and does not look for "Start fight".
    The script is in the snapshot: a change to the file needs a new
-   snapshot. Results (scratchpad `backcheck.py` on `perf.txt`): on
+   snapshot. Results (`tools/perf/start_scripts.py` on `perf.txt`): on
    `cd6ed330`, the profile after the back step has `startPage` (the
    stale attack-page script, 285 to 290 ms) in all 4 runs. On
    `cbfa3236` and `81da92e3`, it has none, in all 4 runs. In all of
