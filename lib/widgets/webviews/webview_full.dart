@@ -245,6 +245,8 @@ class WebViewFullState extends State<WebViewFull>
 
   bool _heightExtendInjected = false;
   int _olsStops = 0;
+  // Bumped by onLoadStart, so late answers can tell the document changed
+  int _loadGen = 0;
 
   // Serializes concurrent _addUserScriptsAvoidDuplicates calls so remove+add cant' cause issues
   Future<void> _scriptLock = Future.value();
@@ -1722,6 +1724,7 @@ class WebViewFullState extends State<WebViewFull>
           onLoadStart: (c, uri) {
             PerfTrace.navStart(_tabUid, uri.toString());
             _olsStops = 0;
+            _loadGen++;
             PerfTrace.cb(_tabUid, 'onLoadStart', () async {
               log("🌐 onLoadStart: $uri", name: "WEBVIEW FULL");
               if (_markInitialLoadStarted()) return;
@@ -1882,7 +1885,22 @@ class WebViewFullState extends State<WebViewFull>
             if (_isParkingBlank(uri)) return;
             final String ols = _olsStops++ == 0 ? 'ols1' : 'ols2';
             PerfTrace.count(_tabUid, '$ols.calls');
-            final p0 = _olsPing(c, '$ols.ping0');
+            final int gen = _loadGen;
+            // Perf builds: start and end of each page trip up to the copy, for the serial count
+            final olsClock = Stopwatch()..start();
+            final olsSpans = <(int, int)>[];
+            final olsSent = <Future<void>>[];
+            Future<T> trip<T>(String name, Future<T> Function() body) {
+              if (!PerfTrace.enabled) return body();
+              final int s0 = olsClock.elapsedMicroseconds;
+              final f = PerfTrace.cb(_tabUid, name, body);
+              olsSent.add(
+                f.then((_) {}, onError: (_) {}).whenComplete(() => olsSpans.add((s0, olsClock.elapsedMicroseconds))),
+              );
+              return f;
+            }
+
+            final p0 = _olsPing(c, '$ols.ping0', trip);
             if (_webViewProvider.tornPageRefreshRC && isTornHost(uri?.host) && ChatEngine.pageLoadJS.isNotEmpty) {
               c.evaluateJavascript(source: ChatEngine.pageLoadJS);
             }
@@ -1900,8 +1918,7 @@ class WebViewFullState extends State<WebViewFull>
                 // We also need to allow this from the Firebase Remote Config just
                 // in case it interferes with other HTML elements
                 _settingsProvider.browserCenterEditingTextFieldRemoteConfigAllowed) {
-              PerfTrace.cb(
-                _tabUid,
+              trip(
                 '$ols.focusin',
                 () => c.evaluateJavascript(
                   source: '''
@@ -1931,17 +1948,16 @@ class WebViewFullState extends State<WebViewFull>
             }
 
             if (_chainWebAllowed) {
-              PerfTrace.cb(
-                _tabUid,
+              trip(
                 '$ols.chain',
                 () => c.evaluateJavascript(source: chainWebInject(_webViewProvider.isTabUidOnScreen(_tabUid))),
               );
             }
 
-            final p1 = _olsPing(c, '$ols.ping1');
+            final p1 = _olsPing(c, '$ols.ping1', trip);
             _olsPageDelta('$ols.pagePreUs', p0, p1);
 
-            await PerfTrace.cb(_tabUid, '$ols.minHeight', () => _maybeEnsureMinHeight(c));
+            _quiet(trip('$ols.minHeight', () => _maybeEnsureMinHeight(c)));
 
             _firstLoadCompleted = true;
 
@@ -1986,23 +2002,38 @@ class WebViewFullState extends State<WebViewFull>
 
               // Guarantee the handler bundle and this page's document-start scripts
               // are present whenever the page runs any userscript (start or end)
-              await PerfTrace.cb(
-                _tabUid,
-                '$ols.injectMissing',
-                () => _injectMissingDocumentStartScripts(c, uri.toString()),
+              // Not awaited: the page runs the end scripts right behind it, and they skip
+              // themselves if it found something missing. The recovery then sends them again
+              _quiet(
+                trip(
+                  '$ols.injectMissing',
+                  () => _injectMissingDocumentStartScripts(
+                    c,
+                    uri.toString(),
+                    isCurrent: () => mounted && gen == _loadGen,
+                    afterRecovery: () => Future.wait(
+                      scriptsToAdd.map(
+                        (script) => webViewController!.evaluateJavascript(
+                          source: _oncePerDocument(script.groupName, script.source),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               );
 
               // We need to inject directly, otherwise these scripts will only load in the next page visit
               // Guard once-per-document so hash navigation (which re-fire onLoadStop) don't re-run END scripts
               // Sent together, they still run in order
               PerfTrace.count(_tabUid, '$ols.endScriptsN', scriptsToAdd.length);
-              await PerfTrace.cb(
-                _tabUid,
-                '$ols.endScripts',
-                () => Future.wait(
-                  scriptsToAdd.map(
-                    (script) => webViewController!.evaluateJavascript(
-                      source: _oncePerDocument(script.groupName, script.source),
+              _quiet(
+                trip(
+                  '$ols.endScripts',
+                  () => Future.wait(
+                    scriptsToAdd.map(
+                      (script) => webViewController!.evaluateJavascript(
+                        source: _unlessMissing(_oncePerDocument(script.groupName, script.source)),
+                      ),
                     ),
                   ),
                 ),
@@ -2017,21 +2048,20 @@ class WebViewFullState extends State<WebViewFull>
                 log("Added scripts in shouldOverride: $addList");
               }
 
-              final p2 = _olsPing(c, '$ols.ping2');
+              final p2 = _olsPing(c, '$ols.ping2', trip);
               hideChatOnLoad();
-              PerfTrace.cb(_tabUid, '$ols.highlight', () => _highlightChat());
+              trip('$ols.highlight', () => _highlightChat());
 
               // If we are using pull-to-refresh in a short page (that does not scroll), add a bit of body
               // height so that the pull-to-refresh triggers properly
               if (_settingsProvider.browserRefreshMethod != BrowserRefreshSetting.icon) {
-                PerfTrace.cb(_tabUid, '$ols.pullHeight', () => _addExtraHeightForPullToRefresh());
+                trip('$ols.pullHeight', () => _addExtraHeightForPullToRefresh());
               }
 
-              final p3 = _olsPing(c, '$ols.ping3');
+              final p3 = _olsPing(c, '$ols.ping3', trip);
               _olsPageDelta('$ols.pageMidUs', p1, p2);
               _olsPageDelta('$ols.pagePostUs', p2, p3);
-              final html = await PerfTrace.cb(
-                _tabUid,
+              final html = await trip(
                 '$ols.copy',
                 () => PerfTrace.cb(
                   _tabUid,
@@ -2040,6 +2070,7 @@ class WebViewFullState extends State<WebViewFull>
                 ),
               );
               PerfTrace.count(_tabUid, 'loadStop.htmlKB', (html?.length ?? 0) ~/ 1024);
+              _olsSerial('$ols.serialToCopy', olsSent, olsSpans);
               final document = PerfTrace.cbSync(_tabUid, 'loadStop.parse', () => parse(html));
 
               // Force to show title
@@ -2777,8 +2808,31 @@ class WebViewFullState extends State<WebViewFull>
   }
 
   // Perf builds: the page clock, to split the page time between the pings
-  Future<dynamic>? _olsPing(InAppWebViewController c, String name) =>
-      PerfTrace.enabled ? PerfTrace.cb(_tabUid, name, () => c.evaluateJavascript(source: 'performance.now()')) : null;
+  Future<dynamic>? _olsPing(
+    InAppWebViewController c,
+    String name,
+    Future<dynamic> Function(String, Future<dynamic> Function()) trip,
+  ) => PerfTrace.enabled ? trip(name, () => c.evaluateJavascript(source: 'performance.now()')) : null;
+
+  // Perf builds: the longest run of trips where each one starts after the one before answered
+  void _olsSerial(String name, List<Future<void>> sent, List<(int, int)> spans) {
+    if (!PerfTrace.enabled) return;
+    Future.wait(List.of(sent)).then((_) {
+      final s = List.of(spans)..sort((a, b) => a.$1.compareTo(b.$1));
+      final depth = List<int>.filled(s.length, 1);
+      for (var i = 0; i < s.length; i++) {
+        for (var j = 0; j < i; j++) {
+          if (s[j].$2 <= s[i].$1 && depth[j] + 1 > depth[i]) depth[i] = depth[j] + 1;
+        }
+      }
+      PerfTrace.count(_tabUid, name, depth.isEmpty ? 0 : depth.reduce((a, b) => a > b ? a : b));
+    });
+  }
+
+  void _quiet(Future<dynamic> f) => f.then((_) {}, onError: (_) {});
+
+  // Skips when the probe sent just before found missing scripts
+  String _unlessMissing(String source) => "if(!window.__pdaMiss){\n$source\n}";
 
   void _olsPageDelta(String name, Future<dynamic>? a, Future<dynamic>? b) {
     if (a == null || b == null) return;
@@ -2904,6 +2958,8 @@ class WebViewFullState extends State<WebViewFull>
     InAppWebViewController c,
     String url, {
     String at = "loadStop",
+    bool Function()? isCurrent,
+    Future<void> Function()? afterRecovery,
   }) async {
     if (!(Platform.isAndroid || ((Platform.isIOS || Platform.isWindows) && widget.windowId == null))) return;
 
@@ -2924,16 +2980,19 @@ class WebViewFullState extends State<WebViewFull>
     final probe = await c.evaluateJavascript(
       source:
           "(function(){var o=window.__pdaOnce||{};var k=${jsonEncode(keys)};var m=[];"
-          "for(var i=0;i<k.length;i++){if(!o[k[i]])m.push(k[i]);}return JSON.stringify(m);})()",
+          "for(var i=0;i<k.length;i++){if(!o[k[i]])m.push(k[i]);}window.__pdaMiss=m.length>0;return JSON.stringify(m);})()",
     );
 
     final Set<String> missing = _decodeMissingKeys(probe);
     if (missing.isEmpty) return;
+    if (isCurrent != null && !isCurrent()) return;
 
     for (final s in expected) {
       if (!missing.contains(s.groupName ?? "anon")) continue;
       await c.evaluateJavascript(source: _oncePerDocument(s.groupName, s.source));
     }
+    await c.evaluateJavascript(source: "window.__pdaMiss=false;");
+    if (afterRecovery != null) await afterRecovery();
 
     if (_debugScriptsInjection) {
       log("Recovered missing document-start scripts in $at: $missing");
