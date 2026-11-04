@@ -537,7 +537,9 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
       Tampermonkey), `http*://` is the same as `*://`, and a host
       without a port matches any port. 4 new tests, 93 model tests
       pass. Not done, a later report item: `@exclude`,
-      `@exclude-match` and `@include` are ignored. The user's export
+      `@exclude-match` and `@include` are ignored. Deferred by the
+      user (fourteenth session): no known script depends on them, so
+      it is not a quality of life fix. The user's export
       uses none of them, but has five exact patterns (no trailing `*`).
    2. PR B, the page guard: each registered start script checks
       `location.href` against its own `@match` before it runs, inside
