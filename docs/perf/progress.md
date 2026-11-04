@@ -921,6 +921,15 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    - Done (2026-11-04): the status of each finding is in `report.md`
      and in the artifact (version 15). Update the status section when
      a PR is merged.
+   - Later (the user's request, 2026-11-04): find PDA's real share of
+     a page load. Tap to DOMContentLoaded is 920 to 1400 ms in the
+     replay, but the first byte (recorded Torn server time) is 260 to
+     730 ms of it, and the 620 to 800 ms after it is mostly Torn's
+     HTML, blocking scripts and their recorded latency. Two ways: split
+     that time with the probe's resource timings (cheap, the data is
+     in the runs), and load the same replayed pages in the track 0
+     control app (a plain WebView). The difference to the control app
+     is PDA's total cost.
    - The new `develop` makes requests that the recordings do not have
      (`tchat/settings`, `tchat/rooms/tokens`, `user/organizedcrime`). A
      new capture needs the user's login (`live-ready`), so ask the user
