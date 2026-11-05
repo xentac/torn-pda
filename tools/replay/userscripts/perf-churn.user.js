@@ -15,8 +15,8 @@
 //   order none, global, narrow, narrow, global, none (visits 1 to 3), or global, narrow, none,
 //   none, narrow, global (visits 4 to 6). blocks has the total time of each block. "global" adds an empty observer on the whole
 //   document, as the chain reader has. "narrow" adds one on the chain bar only. "none" adds none.
-// - A tick (every 50 ms) does rate/20 changes in a box in the main content: even ones set the
-//   text of a timer node (characterData), odd ones add a message and remove the oldest (childList).
+// - A tick (every 50 ms) does rate/20 changes in a box in the main content. They alternate: one sets the
+//   text of a timer node (characterData), the next adds a message and removes the oldest (childList).
 // - loop: the time of the changes. total: from the start of the changes until a promise queued
 //   after them runs, so it includes the delivery of the records to all observers.
 (function () {
@@ -77,7 +77,7 @@
     const per = Math.max(1, Math.round(rate / (1000 / TICK_MS)));
     const t0 = now();
     for (let i = 0; i < per; i++, n++) {
-      if (i % 2 === 0) {
+      if (n % 2 === 0) {
         timers[n % timers.length].data = String(n % 60).padStart(2, "0") + ":" + String(n % 100).padStart(2, "0") + " ";
       } else {
         chat.firstChild.remove();

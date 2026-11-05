@@ -91,6 +91,9 @@ Last update: 2026-11-05 (sixteenth session).
     for finding 1.5. Fifteenth session.
   - `0ee0a6e2`: `56a2b4e0` with `useOnLoadResource: false` (local
     branch `perf/olr-off`). Only for the upper bound of finding 1.5.
+  - `bf83e536`: `perf/analysis` with the chain reader observer on the
+    chain bar only (local branch `perf/chain-bar-observer`). Only for
+    finding 1.6. Sixteenth session.
 - Emulator snapshots for replay: `replay-ready` is the A1 snapshot. Keep
   it. `replay-ready-b1` (eighth session) has the test userscripts and
   PDA's five example scripts. Use it for all B1 work, with
@@ -1121,6 +1124,30 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    | `step=your&type=N` | 1386 | 241 / 3 | 388 / 3 |
    | `sid=crimes` | 955 | 760 / 3 | 1314 / 5 |
 
+   Start of the seventeenth session. At the end of the sixteenth
+   session:
+
+   - Finding 1.6 for `chainWebReader` is measured with the new churn
+     test (see "Finding 1.6: the chain reader observer"). The narrowed
+     observer removes about 150 callbacks in each visit, but long
+     tasks, frame gaps and the per-tick times do not change by more
+     than the noise. By the measured-gain rule, there is no PR.
+   - Waits on the user: whether to measure garbage collection with a
+     `v8.gc` trace (a second A/B that needs WebView debugging on), and
+     the snippet of a live chain on the attack page.
+   - Local only: the branch `perf/chain-bar-observer` (`bf83e536`) and
+     its worktree `<scratchpad>/wt-chain` of the sixteenth session.
+     Keep or delete them as the user chooses.
+   - The churn test: `tools/replay/userscripts/perf-churn.user.js`,
+     `tools/replay/flows/churn.yaml`, `~/pda-recordings/runs_churn.sh`
+     and `~/pda-recordings/churn_stats.py`. Do not wait on a test with
+     `pgrep -f runs_churn.sh` in a shell: the pattern matches the
+     shell's own command line, so the wait never ends.
+   - Open PRs: #508 and #509, no change. The other items of the
+     sixteenth session below are still open (the other global
+     observers, the chat cache trim, the iOS plan for #509, 1.9,
+     tier 3, the report artifact version 17, the Greasy Fork pages).
+
    Start of the sixteenth session. At the end of the fifteenth
    session:
 
@@ -1812,6 +1839,16 @@ trace of the `v8.gc` category over the DevTools protocol can measure
 it. That needs WebView debugging on: PDA turns it on only with the
 browser remote debugging setting (`lib/main.dart:217`). Waits on the
 user: whether to run that second A/B.
+
+Two limits of these runs. First, the script then chose the kind of
+change with the index inside the tick. At 20 changes each second a
+tick has one change, so all changes at that rate were timer text
+(`characterData`), and no message was added. The script now
+alternates over the visit (commit after `8246413d`). The 200 and 2000
+rates had the mix and show no difference either, so the result
+stands without new runs. Second, the A/B measured only the cost of B.
+It did not check that B still sees a change in the bar. If the fix
+comes back, check that first.
 
 ### Fix 1.7, part 1: the end scripts together
 
