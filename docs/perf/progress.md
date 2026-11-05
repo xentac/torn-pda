@@ -1134,6 +1134,11 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
      than the noise. By the measured-gain rule, there is no PR. With
      16 more empty global observers, the cost grows only to 3.1 ms in
      0.9 s at 2000 changes each second (see "Many global observers").
+   - The upstream branch `chain-bar-observer` (`03335af2`) is ready
+     and local only. The user chose to send it for the work it
+     removes. The PR text is not written. Ask before the push.
+   - The audit of the other PDA observers is in "The other PDA
+     observers". Next: the user chooses which ones to narrow.
    - Waits on the user: whether to measure garbage collection with a
      `v8.gc` trace (a second A/B that needs WebView debugging on), and
      the snippet of a live chain on the attack page.
@@ -1877,6 +1882,42 @@ real callback runs once for each batch, and it belongs to the script
 that has it. So the records do not multiply into a visible cost, and
 PDA's one observer adds the same small share, whatever the other
 scripts do. This closes the concern with numbers.
+
+The user's choice after these results: limit the resources in PDA's
+own callbacks even without a time gain. Up to 1 s to find a new bar
+is fine ("if the chain is going to fail in 1s you won't be able to
+save it anyway"). So the change goes upstream with an honest text
+(the work it removes, no speed claim).
+
+- The upstream branch is `chain-bar-observer` (`03335af2`, on
+  `origin/develop` `28d0d74e`, local only, worktree
+  `<scratchpad>/wt-chain-up`). It has only the observer change.
+- The check that B still sees the bar: both readers ran on a test
+  page in headless Chromium, with a fake bar and a stub for
+  `callHandler` (`<scratchpad>/chaintest/`, the host check patched
+  to `www.torn.com`). 50 changes outside the bar: the global reader
+  got 1 callback, the narrowed one 0. A change of the bar value: both
+  sent it after about 100 ms. A bar that is replaced: the narrowed
+  reader sent the new value after 1003 ms (the interval), the global
+  one after 864 ms. After that, the narrowed reader saw a change of
+  the new bar after 100 ms. A bar that is removed: both sent
+  `none`.
+
+The other PDA observers (read, not measured):
+
+| Script | Watches | Work in each batch | How long |
+|---|---|---|---|
+| Bank vault `when` and `addToggle` (`js_bank_vault.dart`) | document, `characterData` in `when` | 3 `querySelector` and a regex, or one `getElementById` | 30 s at most |
+| Bazaar fill (`js_snippets.dart:393`) | body | `querySelectorAll` in each added node, twice for the same node | until the URL leaves `bazaar.php?userId=` |
+| Hospital timer (`js_snippets.dart:1217`) | body, `characterData` | `querySelectorAll` over the document and a regex | until the hospital time ends, on an attack page of a target in hospital |
+| Quick items temporary cache (`js_quick_items.dart:338`) | body | `querySelectorAll` in each added node | the whole page |
+| Quick items picker (`js_quick_items.dart:1559`) | body | `querySelectorAll('li[data-item]')` over the document, several `querySelector` for each item, `getComputedStyle` (a style flush), and the same on each scroll and resize event | while the picker is open |
+| Shop max (`remote_snippets.dart:614`) and buy max (`:1014`) | body | a scan of all item cards | the whole page, no disconnect |
+
+The heaviest callback is the quick items picker. The hospital timer
+runs the longest with a document query in each batch. The bazaar
+callback scans each added node twice. Each callback that adds
+buttons starts one more batch, which then finds nothing to do.
 
 ### Fix 1.7, part 1: the end scripts together
 
