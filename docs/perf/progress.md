@@ -1137,14 +1137,30 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    - The upstream branch `chain-bar-observer` (`03335af2`) is ready
      and local only. The user chose to send it for the work it
      removes. The PR text is not written. Ask before the push.
-   - The audit of the other PDA observers is in "The other PDA
-     observers". Next: the user chooses which ones to narrow.
+   - The next task (the user chose it): change the other observers of
+     "The other PDA observers" to the observer rule in that section
+     (queries only inside the observer's context, smallest root
+     first). In this order: the quick items picker
+     (`js_quick_items.dart:1559`, also its scroll and resize
+     listeners), the hospital timer (`js_snippets.dart:1217`), the
+     bazaar fill double scan (`js_snippets.dart:393`). Then ask the
+     user about shop max and buy max (`remote_snippets.dart:614` and
+     `:1014`): they are remote snippets, so a change raises their
+     version (see "Versions"). One upstream branch for each script,
+     from `origin/develop`, with comments of a few words. Check each
+     change on a test page in headless Chromium, as for the chain
+     reader (`<scratchpad>/chaintest/` of the sixteenth session has
+     the method: `env -u LD_LIBRARY_PATH chromium --headless=new
+     --virtual-time-budget=10000 --dump-dom`, served by
+     `python3 -m http.server` on a free port, not 8765).
    - Waits on the user: whether to measure garbage collection with a
      `v8.gc` trace (a second A/B that needs WebView debugging on), and
      the snippet of a live chain on the attack page.
    - Local only: the branch `perf/chain-bar-observer` (`bf83e536`) and
      its worktree `<scratchpad>/wt-chain` of the sixteenth session.
-     Keep or delete them as the user chooses.
+     Keep or delete them as the user chooses. Not pushed: the
+     upstream branch `chain-bar-observer` and the commits on
+     `perf/analysis` after `72c42ac3`. Ask the user before the push.
    - The churn test: `tools/replay/userscripts/perf-churn.user.js`,
      `tools/replay/flows/churn.yaml`, `~/pda-recordings/runs_churn.sh`
      and `~/pda-recordings/churn_stats.py`. Do not wait on a test with
