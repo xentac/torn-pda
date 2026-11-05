@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-05 (fifteenth session).
+Last update: 2026-11-05 (sixteenth session).
 
 ## State
 
@@ -1725,6 +1725,93 @@ branches that are not needed):
   `perf/ols-trips` (the PR is not open yet), `start-guard` (#508), the
   five measurement branches of the twelfth session (until #508 is
   merged), and `perf/analysis-backup` (never push it).
+
+### Finding 1.6: the chain reader observer (sixteenth session)
+
+`chainWebReader` (`js_chain_web.dart`) watches `document.documentElement`
+with `subtree`, `childList` and `characterData` while its tab is on
+screen. The fix watches only the chain bar `a[class*="chainBar___"]`.
+The 1-second interval finds a new bar, and the store subscription stays
+the main path. On the attack page there is no bar, so it watches
+nothing there. The store subscription and the interval cover that page.
+The measurement branch is `perf/chain-bar-observer` (`bf83e536`, local
+only, worktree `<scratchpad>/wt-chain`). The APK is
+`~/pda-recordings/apks/bf83e536.apk`.
+
+The replay has no live chain. In `attack.mitm`, all 12 `attackData`
+answers have `"chain":0` and `"chainEnd":0`, so the attack path of the
+reader returns nothing. The sidebar chain is in cooldown. The user
+tries to get a snippet of a live attack page header.
+
+The churn test (the user approved the design):
+
+- `tools/replay/userscripts/perf-churn.user.js` runs at document end on
+  `profiles.php`. It waits for `window.__pdaChainReader`, then runs 6
+  blocks of 1.2 s. A tick (every 50 ms) changes a box in the main
+  content: timer text (`characterData`) and chat messages
+  (`childList`). The rate comes from a visit counter in
+  `localStorage`: 20, 200 and 2000 changes each second.
+- Each block has a mode. `global` adds an empty observer on the
+  document, `narrow` adds one on the chain bar, `none` adds none.
+  Visits 1 to 3 use the order none, global, narrow, narrow, global,
+  none. Visits 4 to 6 use global, narrow, none, none, narrow, global.
+- `total` is the time from the start of the changes until a promise
+  queued after them runs. It includes the delivery of the records to
+  all observers. `loop` is the changes only. The record is in
+  `us.churn` of the probe record.
+- `tools/replay/flows/churn.yaml` adds the script, then opens the
+  profile 6 times, 12 s each. Run it with
+  `~/pda-recordings/runs_churn.sh RUNS APK...` (from `attack.mitm` and
+  `onboarding.mitm`). Summarize with
+  `python3 -I ~/pda-recordings/churn_stats.py RUN_DIR...`.
+
+The first step, on build A (`56a2b4e0`) only: 5 runs with the first
+order, then 2 runs with both orders. The extra empty observer has no
+cost that the test can see. The first and last blocks are always the
+cheapest, whatever their mode. Block totals (ms in 1.2 s, median of 2
+runs):
+
+| Rate | Order 1 (none, glob, narr, narr, glob, none) | Order 2 (glob, narr, none, none, narr, glob) |
+|---|---|---|
+| 20 | 2.5, 2.0, 2.0, 3.5, 2.5, 2.6 | 2.5, 2.8, 2.8, 2.9, 2.8, 4.0 |
+| 200 | 10.6, 15.5, 14.6, 14.1, 12.8, 8.2 | 11.1, 15.1, 14.2, 13.2, 14.6, 7.7 |
+| 2000 | 21.0, 24.8, 26.9, 27.9, 26.6, 19.9 | 23.1, 24.1, 24.8, 24.4, 24.5, 21.2 |
+
+So the delivery of records to a global observer costs less than the
+noise, even at 2000 changes each second. The remaining cost of the
+reader's global observer is the `check()` that it starts every 100 ms
+while the page changes. That runs in its own task, so the per-tick
+numbers do not include it. Only the A/B of the two builds can show it.
+
+The A/B: 4 runs each of A (`56a2b4e0`) and B (`bf83e536`), A B B A,
+all 8 passed (`20261105T050809Z` to `20261105T053624Z`). Medians over
+the 8 visits for each rate (the probe's 10 s record):
+
+| Rate | Build | Long tasks (ms) | Frame gaps over 50 ms | Observer callbacks | Injected callback ms |
+|---|---|---|---|---|---|
+| 20 | A | 298 | 5 | 223 | 4.2 |
+| 20 | B | 308 | 7 | 73 | 2.2 |
+| 200 | A | 148 | 1 | 468 | 30.4 |
+| 200 | B | 132 | 2 | 318 | 28.0 |
+| 2000 | A | 142 | 2 | 465 | 28.0 |
+| 2000 | B | 176 | 3 | 315 | 26.6 |
+
+B removes about 150 reader callbacks in each visit (one for each tick
+batch, so the same at each rate) and with them up to 72 `check()`
+runs. The callback time falls by only 1.4 to 2.4 ms in 10 s. Long
+tasks, frame gaps and the per-tick times do not differ by more than
+the noise. The block totals of both builds are within 2 ms of each
+other at the same position.
+
+Result: the time cost of the global observer is below what the test
+can see, even at 2000 changes each second. By the rule "no PR without
+a measured gain", the time numbers do not support a PR. Open question
+(the user's point): the records and their wrappers make garbage, and
+the collection pauses come later, outside the per-tick numbers. A
+trace of the `v8.gc` category over the DevTools protocol can measure
+it. That needs WebView debugging on: PDA turns it on only with the
+browser remote debugging setting (`lib/main.dart:217`). Waits on the
+user: whether to run that second A/B.
 
 ### Fix 1.7, part 1: the end scripts together
 

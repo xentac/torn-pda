@@ -1,0 +1,39 @@
+# Adds perf-churn.user.js, then opens the same profile 6 times and stays 12 s on each,
+# so that the probe writes a record with the churn times. The script takes the next
+# rate on each visit (20, 200, 2000 changes each second, then again).
+# Recording: anon/attack.mitm (target 8810916). Its sidebar has the chain bar.
+appId: com.manuito.tornpda
+---
+- runFlow: dismiss-tips.yaml
+- openLink: "tornpda://pda-replay.invalid/blank"
+- extendedWaitUntil:
+    visible: ".*No Torn page is open.*"
+    timeout: 30000
+# The page title opens the browser menu.
+- tapOn:
+    point: "44%,9%"
+- tapOn: "User Scripts"
+- tapOn:
+    text: "Yes, I promise!"
+    optional: true
+- extendedWaitUntil:
+    visible: "auto-stock-fill"
+    timeout: 10000
+- runFlow:
+    file: add-userscript.yaml
+    env:
+      URL: https://pda-replay.invalid/userscripts/perf-churn.user.js
+      NAME: PDA Perf Test Churn
+- back
+- repeat:
+    times: 6
+    commands:
+      - openLink: "https://www.torn.com/profiles.php?XID=8810916"
+      - extendedWaitUntil:
+          visible:
+            id: "button0-profile-8810916"
+          timeout: 60000
+      - extendedWaitUntil:
+          visible: "PDA replay: text that never shows"
+          timeout: 12000
+          optional: true
