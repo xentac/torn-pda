@@ -1161,7 +1161,9 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
      Keep or delete them as the user chooses. Pushed to the fork
      with the user's approval (2026-11-05): `perf/analysis`,
      `chain-bar-observer` and `perf/chain-bar-observer`. The user
-     opens the PR for `chain-bar-observer`. Ask before each new push.
+     opens the PR for `chain-bar-observer`, with the text in
+     `~/pda-recordings/pr-chain-bar-observer.md`. Put the PR number
+     in the table when it exists. Ask before each new push.
    - The churn test: `tools/replay/userscripts/perf-churn.user.js`,
      `tools/replay/flows/churn.yaml`, `~/pda-recordings/runs_churn.sh`
      and `~/pda-recordings/churn_stats.py`. Do not wait on a test with
