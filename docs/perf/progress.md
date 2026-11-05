@@ -1133,14 +1133,40 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
      rules under the PR table). The second one to merge must keep both
      changes at the end of `_injectMissingDocumentStartScripts`: first
      #508's loop, then the flag reset and `afterRecovery`.
-   - The next task (proposed, the user did not choose yet): finding
-     1.6, the injected scripts that watch the whole page
-     (`chainWebReader`, chat highlight, the chat cache trim). Measure
-     first: the probe's `hooks` fields give the observers and timers
-     and their callback time, split into "page" and "injected". Then
-     do the crude A/B of the lesson above (turn the three features off
-     in a measurement build) before you plan a fix. Other open items:
-     the iOS test plan for #509, finding 1.9 (track D), and tier 3.
+   - The next task (the user chose it): finding 1.6, narrowed to
+     `chainWebReader`. Since `610af44f`, chat highlight watches only
+     `#chatRoot`, with a `class` attribute filter and one animation
+     frame per batch. Its 1-second `markAll` interval is gone.
+     `chainWebReader` (`js_chain_web.dart`) still watches
+     `document.documentElement` with `subtree` and `characterData`
+     while its tab is on screen. Each change anywhere starts a
+     `check()` 100 ms later. The fix (the user agrees): watch only the
+     chain bar `a[class*="chainBar___"]` once it exists. The attack
+     page reads its header and store, so look at that case too.
+   - Why a churn test: in the replay, the injected observer callbacks
+     take only 0.3 to 7.9 ms per page in 10 s (probe `hooks`,
+     `56a2b4e0` base). The replay pages barely change, and a subtree
+     observer costs mostly inside the page's own changes (one record
+     for each change), not in the callback. So an on/off A/B in the
+     plain replay shows nothing. Build a churn test: a test userscript
+     (`tools/replay/userscripts/`) that changes a page area many
+     times each second, as live chat or a timer does. Compare long
+     tasks, frame gaps and the time of the churn work itself, with the
+     global observer and with the narrowed one. Bring the user the
+     test design before you write it. A live capture is possible, but
+     harder to repeat (the user's view).
+   - Scope (the user's rule): fix only PDA's own injected scripts and
+     the default scripts that PDA installs. Global observers in
+     third-party userscripts are not our concern. Other PDA scripts
+     with a global observer, to check later: `js_bank_vault.dart`,
+     the hospital observer (`js_snippets.dart`), `js_quick_items.dart`
+     and the shop scripts in `remote_snippets.dart`. They can run only
+     in their own sections.
+   - The chat cache trim (`handler_tornChatCacheTrim`) watches nothing.
+     It reads every `localStorage` key and value once at document
+     start. That is a separate, smaller question.
+   - Other open items: the iOS test plan for #509, finding 1.9
+     (track D), and tier 3.
    - The fork has `perf/analysis` up to date. The old branches are
      deleted (see "Branches, end of the fifteenth session").
    - Waits on the user: the go-ahead for version 17 of the report
