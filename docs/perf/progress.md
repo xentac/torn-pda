@@ -1131,7 +1131,7 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
      test (see "Finding 1.6: the chain reader observer"). The narrowed
      observer removes about 150 callbacks in each visit, but long
      tasks, frame gaps and the per-tick times do not change by more
-     than the noise. By the measured-gain rule, there is no PR. With
+     than the noise. The user still wants it upstream (see below). With
      16 more empty global observers, the cost grows only to 3.1 ms in
      0.9 s at 2000 changes each second (see "Many global observers").
    - The upstream branch `chain-bar-observer` (`03335af2`) is ready
