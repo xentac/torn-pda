@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-04 (fifteenth session).
+Last update: 2026-11-05 (fifteenth session).
 
 ## State
 
@@ -413,9 +413,9 @@ table when a PR is opened, changed or closed.
 
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
-| `onLoadStop` awaits only the copy | `perf/ols-send` (`65ace9f9`) | `onload-stop-one-wait` (commit `39609cb1`, on `origin/develop` `28d0d74e`) | not opened | Pushed to the fork on 2026-11-04. The user opens the PR. |
+| `onLoadStop` awaits only the copy | `perf/ols-send` (`65ace9f9`) | `onload-stop-one-wait` (commit `39609cb1`, on `origin/develop` `28d0d74e`) | [#509](https://github.com/Manuito83/torn-pda/pull/509) | Open since 2026-11-05. It conflicts with #508 at the end of `_injectMissingDocumentStartScripts` (see "Start of the fifteenth session"). |
 | GM handler crashes after renderer recovery (before this project) | none | `fix/gm-handler-reinject` | [#480](https://github.com/Manuito83/torn-pda/pull/480) | Merged on 2026-07-22. |
-| B1 1.7 part 4, start script skip and page `@match` check | `perf/start-skip` (`81da92e3`), `perf/start-guard` (`cbfa3236`) | `start-guard` (commit `9b523b82`, on `match-semantics` plus the #505 commit, pushed to the fork on 2026-11-03) | [#508](https://github.com/Manuito83/torn-pda/pull/508) | Open since 2026-11-04. #505 and #507 are merged now. The maintainer's `74a51407` matches a pattern that has a `#` against the full URL, and the rest without the hash. `start-guard` is rebased on `28d0d74e` as `161d6d62` (local): the page guard follows the same rule, and the guard test has two `#` patterns. 98 model tests pass. Force-push it only with the user's go-ahead. |
+| B1 1.7 part 4, start script skip and page `@match` check | `perf/start-skip` (`81da92e3`), `perf/start-guard` (`cbfa3236`) | `start-guard` (commit `9b523b82`, on `match-semantics` plus the #505 commit, pushed to the fork on 2026-11-03) | [#508](https://github.com/Manuito83/torn-pda/pull/508) | Open since 2026-11-04. #505 and #507 are merged now. The maintainer's `74a51407` matches a pattern that has a `#` against the full URL, and the rest without the hash. `start-guard` is rebased on `28d0d74e` as `161d6d62` and force-pushed: the page guard follows the same rule, and the guard test has two `#` patterns. 98 model tests pass. |
 | `@match` as in Tampermonkey (issue #314) | `perf/match-semantics` (`29014052`) | `match-semantics` (commit `787b2406`, on `5ea591af`, pushed to the fork on 2026-11-03) | [#507](https://github.com/Manuito83/torn-pda/pull/507) | Merged on 2026-11-04 as `d1280765`. The maintainer then added `74a51407`. |
 | B1 1.7 part 3, cache the adapted source | `perf/cond-sources-list` | `cond-sources-cache` (commit `d7165545`, on `5ea591af`, pushed to the fork on 2026-11-03) | [#505](https://github.com/Manuito83/torn-pda/pull/505) | Merged on 2026-11-03 as `87387e22`. |
 | B1 1.7 part 1, end scripts together | deleted | deleted | [#504](https://github.com/Manuito83/torn-pda/pull/504) | Merged on 2026-11-03 as `1edf12c5`, without comments or changes. |
@@ -1120,6 +1120,35 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    | `step=your` | 1647 | 213 / 2 | 638 / 4 |
    | `step=your&type=N` | 1386 | 241 / 3 | 388 / 3 |
    | `sid=crimes` | 955 | 760 / 3 | 1314 / 5 |
+
+   Start of the sixteenth session. At the end of the fifteenth
+   session:
+
+   - Finding 1.5 is closed with no change (see "Finding 1.5: the
+     onLoadResource messages"). `report.md` has the status.
+   - Open PRs: #508 (`start-guard` `161d6d62`) and #509
+     (`onload-stop-one-wait` `39609cb1`). Run the `gh pr list`
+     command in "State". If one was merged, update the table, the
+     status table of `report.md`, and rebase `perf/analysis` (see the
+     rules under the PR table). The second one to merge must keep both
+     changes at the end of `_injectMissingDocumentStartScripts`: first
+     #508's loop, then the flag reset and `afterRecovery`.
+   - The next task (proposed, the user did not choose yet): finding
+     1.6, the injected scripts that watch the whole page
+     (`chainWebReader`, chat highlight, the chat cache trim). Measure
+     first: the probe's `hooks` fields give the observers and timers
+     and their callback time, split into "page" and "injected". Then
+     do the crude A/B of the lesson above (turn the three features off
+     in a measurement build) before you plan a fix. Other open items:
+     the iOS test plan for #509, finding 1.9 (track D), and tier 3.
+   - The fork has `perf/analysis` up to date. The old branches are
+     deleted (see "Branches, end of the fifteenth session").
+   - Waits on the user: the go-ahead for version 17 of the report
+     artifact (the `onLoadStop` results, #505 and #507 merged, 1.5
+     closed), and the Greasy Fork pages 2 and up.
+   - The ignored stub `lib/torn-pda-native/auth/native_auth_models.dart`
+     still has the two added functions. Keep them until the maintainer
+     fixes the stub gap.
 
    Start of the fifteenth session. At the end of the fourteenth
    session:
@@ -2046,6 +2075,11 @@ a `div.travel-home` element.
 
 ### Lessons from the baseline work
 
+- Before you write a fix, build the crude version that removes the
+  whole cost (for 1.5, `useOnLoadResource: false`), and run it against
+  the base. It is one line and one hour of runs. For 1.5, it showed no
+  clear gain, and it saved a plugin change in three packages. A high
+  message count or a long wait in the page is not proof of a gain.
 - When upstream changes `androidCompilation`, the new build shows the
   changelog after the install, and `replay-ready` does not have it
   closed. Before a comparison, look at an early screenshot of a run, and
