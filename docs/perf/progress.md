@@ -1135,7 +1135,7 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
      16 more empty global observers, the cost grows only to 3.1 ms in
      0.9 s at 2000 changes each second (see "Many global observers").
    - The upstream branch `chain-bar-observer` (`03335af2`) is ready
-     and local only. The user chose to send it for the work it
+     and on the fork. The user chose to send it for the work it
      removes. The PR text is not written. Ask before the push.
    - The next task (the user chose it): change the other observers of
      "The other PDA observers" to the observer rule in that section
@@ -1158,9 +1158,10 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
      the snippet of a live chain on the attack page.
    - Local only: the branch `perf/chain-bar-observer` (`bf83e536`) and
      its worktree `<scratchpad>/wt-chain` of the sixteenth session.
-     Keep or delete them as the user chooses. Not pushed: the
-     upstream branch `chain-bar-observer` and the commits on
-     `perf/analysis` after `72c42ac3`. Ask the user before the push.
+     Keep or delete them as the user chooses. Pushed to the fork
+     with the user's approval (2026-11-05): `perf/analysis`,
+     `chain-bar-observer` and `perf/chain-bar-observer`. The user
+     opens the PR for `chain-bar-observer`. Ask before each new push.
    - The churn test: `tools/replay/userscripts/perf-churn.user.js`,
      `tools/replay/flows/churn.yaml`, `~/pda-recordings/runs_churn.sh`
      and `~/pda-recordings/churn_stats.py`. Do not wait on a test with
