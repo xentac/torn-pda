@@ -1545,7 +1545,9 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
 
 ### Finding 1.5: the onLoadResource messages
 
-Started on 2026-11-04 (fifteenth session). No code change yet.
+Closed on 2026-11-04 (fifteenth session), with the user's approval: no
+clear gain (see "Step 1, the result" below), so no PR. `report.md` has
+the status, and the artifact waits for the user's go-ahead.
 
 How a message travels (plugin `eb8a7c90`, Android). The plugin adds a
 document-start script with a `PerformanceObserver` (without `buffered`).

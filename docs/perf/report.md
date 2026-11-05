@@ -30,7 +30,8 @@ The maintainer's commit `610af44f` ("browser speed", 2026-11-02) and our pull re
 | 1.2 Page reads | The `onLoadStart` copy now runs only on `loader.php` (`610af44f`). We tried a small script in place of the `onLoadStop` copy (2026-11-04). It removed every copy and its parse, but the page load did not change, because the script is also one round trip to the page. Not sent upstream. The other reads are open (track P). |
 | 1.3 Progress bar | Fixed upstream in `610af44f`: a `ValueNotifier`, and no animation when the bar is off or the tab is not on screen. |
 | 1.4 Link navigations | The iframe fast path and the `http` race are fixed upstream in `610af44f`. `onLoadStart` registers the start scripts only after they were lost. #508 (open) registers a start script only when it changed. Track B2 is open. |
-| 1.5, 1.6 | Open (tracks P and D). |
+| 1.5 Resource messages | Closed (2026-11-04). A build without the messages had no clear gain in the replay. No change. |
+| 1.6 | Open (track P). |
 | 1.7 Userscripts | Part 1: #504 (merged). Part 2: fixed upstream in `610af44f` (only registered groups). Part 3: #505 (open). Part 4: #508 (open), with the `@match` fix #507 (open). The pattern cache is upstream. |
 | 1.8 Platform-ready wait | #502 (merged). |
 | 1.9 HEAD request | Open (track D). |
@@ -175,6 +176,8 @@ The Dart side of `onLoadResource` does real work only on a few pages: trades, va
 Fix: do not patch XHR or `fetch` for this, because many Torn userscripts patch them too. Instead, patch the plugin's observer script to call the handler only for URLs that match a pattern from Dart. This keeps the same mechanism on iOS and removes about 99 % of the messages. The page data layer then removes the remaining uses. The code comment near the settings says that AJAX interception broke `onLoadResource` on iOS, so test on iOS first.
 
 Measure with: `bridge.byName.onLoadResource.n` in the probe.
+
+Status, 2026-11-04: closed with no change. In the replay, a page sends 87 to 307 messages in its first 10 s. The handler uses about 4 % of them on the faction pages and none on the others. A build with `useOnLoadResource: false` sends none. We ran 2 runs per build against the base. The `PDA_httpGet` wait, `onLoadStop`, `nav.load`, long tasks and frame gaps did not move the same way on all pages. A filter can only save less than that, so we do not send one. The filtered observer stays an option for track P.
 
 #### 1.6 Injected scripts watch the whole page for its full life
 
