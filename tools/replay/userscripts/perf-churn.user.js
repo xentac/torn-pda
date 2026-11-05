@@ -11,10 +11,10 @@
 // Writes window.__pdaPerfUs.churn. The page probe adds it to its record 10 s after load.
 // - Each visit takes the next rate from RATES (a counter in localStorage), so a flow that opens
 //   the page 3 times tests each rate once.
-// - It waits for PDA's chain reader (window.__pdaChainReader), then runs 6 blocks of 1.2 s in the
-//   order none, global, narrow, narrow, global, none (visits 1 to 3), or global, narrow, none,
-//   none, narrow, global (visits 4 to 6). blocks has the total time of each block. "global" adds an empty observer on the whole
-//   document, as the chain reader has. "narrow" adds one on the chain bar only. "none" adds none.
+// - It waits for PDA's chain reader (window.__pdaChainReader), then runs 8 blocks of 0.9 s in the
+//   first order of ORDERS (visits 1 to 3) or the second (visits 4 to 6). Each block has a mode.
+//   "gN" adds N empty observers on the whole document, as the chain reader has one. "global" is
+//   g1. "narrow" adds one on the chain bar only. "none" adds none. blocks has the total of each block.
 // - A tick (every 50 ms) does rate/20 changes in a box in the main content. They alternate: one sets the
 //   text of a timer node (characterData), the next adds a message and removes the oldest (childList).
 // - loop: the time of the changes. total: from the start of the changes until a promise queued
@@ -22,10 +22,10 @@
 (function () {
   const RATES = [20, 200, 2000];
   const ORDERS = [
-    ["none", "global", "narrow", "narrow", "global", "none"],
-    ["global", "narrow", "none", "none", "narrow", "global"],
+    ["none", "g1", "g4", "g16", "g16", "g4", "g1", "none"],
+    ["g16", "g4", "g1", "none", "none", "g1", "g4", "g16"],
   ];
-  const BLOCK_MS = 1200;
+  const BLOCK_MS = 900;
   const TICK_MS = 50;
   const KEY = "pdaPerfChurn.visit";
   const now = () => performance.now();
@@ -63,12 +63,17 @@
   }
 
   const OPTS = { subtree: true, childList: true, characterData: true };
-  function observerFor(mode) {
-    if (mode === "none") return null;
-    const target = mode === "global" ? document.documentElement : document.querySelector('a[class*="chainBar___"]') || document.createElement("div");
-    const o = new MutationObserver(() => {});
-    o.observe(target, OPTS);
-    return o;
+  function observersFor(mode) {
+    const g = /^g(\d+)$/.exec(mode);
+    const k = g ? +g[1] : mode === "none" ? 0 : 1;
+    const target = mode === "narrow" ? document.querySelector('a[class*="chainBar___"]') || document.createElement("div") : document.documentElement;
+    const out = [];
+    for (let i = 0; i < k; i++) {
+      const o = new MutationObserver(() => {});
+      o.observe(target, OPTS);
+      out.push(o);
+    }
+    return out;
   }
 
   const stats = {};
@@ -95,12 +100,12 @@
     if (b >= MODES.length) return finish();
     const mode = MODES[b];
     const s = (stats[mode] = stats[mode] || { loop: [], total: [] });
-    const o = observerFor(mode);
+    const os = observersFor(mode);
     const from = s.total.length;
     const end = now() + BLOCK_MS;
     const step = () => {
       if (now() >= end) {
-        if (o) o.disconnect();
+        os.forEach((o) => o.disconnect());
         // The last tick's promise ran before this timer
         r.blocks.push([mode, r1(sum(s.total.slice(from)))]);
         return setTimeout(() => runBlock(b + 1), TICK_MS);

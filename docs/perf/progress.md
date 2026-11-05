@@ -1131,7 +1131,9 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
      test (see "Finding 1.6: the chain reader observer"). The narrowed
      observer removes about 150 callbacks in each visit, but long
      tasks, frame gaps and the per-tick times do not change by more
-     than the noise. By the measured-gain rule, there is no PR.
+     than the noise. By the measured-gain rule, there is no PR. With
+     16 more empty global observers, the cost grows only to 3.1 ms in
+     0.9 s at 2000 changes each second (see "Many global observers").
    - Waits on the user: whether to measure garbage collection with a
      `v8.gc` trace (a second A/B that needs WebView debugging on), and
      the snippet of a live chain on the attack page.
@@ -1849,6 +1851,32 @@ rates had the mix and show no difference either, so the result
 stands without new runs. Second, the A/B measured only the cost of B.
 It did not check that B still sees a change in the bar. If the fix
 comes back, check that first.
+
+Many global observers (the user's concern: other scripts add their own,
+so the records multiply). The script now has modes `gN`: N empty
+observers on the document. 8 blocks of 0.9 s in two orders, none, g1,
+g4, g16, g16, g4, g1, none and the reverse. Both kinds of change at
+every rate. 4 runs on A (`56a2b4e0`), all passed (`20261105T055931Z`
+to `20261105T061107Z`). The ends of a visit are cheaper, so the table
+has the mean of the 4 positions of each mode (2 in each order), in ms
+for each 0.9 s block:
+
+| Rate | none | g1 | g4 | g16 | g16 minus none |
+|---|---|---|---|---|---|
+| 20 | 4.2 | 5.0 | 4.6 | 4.9 | 0.7 |
+| 200 | 9.0 | 10.4 | 9.6 | 10.3 | 1.3 |
+| 2000 | 17.6 | 18.7 | 19.0 | 20.7 | 3.1 |
+
+The cost grows with the number of observers, but not faster than
+linear: g4 is about the same as g1. At 2000 changes each second, 16
+more observers take 3.1 ms in 0.9 s, about 0.35 % of the main thread,
+or 0.2 ms each second for each observer. At 200 changes each second
+it is 1.3 ms. The probe wraps each callback, so the true cost is a
+little lower. These observers have empty callbacks. The work in a
+real callback runs once for each batch, and it belongs to the script
+that has it. So the records do not multiply into a visible cost, and
+PDA's one observer adds the same small share, whatever the other
+scripts do. This closes the concern with numbers.
 
 ### Fix 1.7, part 1: the end scripts together
 
