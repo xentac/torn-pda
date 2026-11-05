@@ -1660,7 +1660,7 @@ the page.
 Branches, end of the fifteenth session (the user asked to delete the
 branches that are not needed):
 
-- To delete, on the fork and locally: `cond-sources-cache` (#505,
+- Deleted on 2026-11-04 by the user, on the fork and locally: `cond-sources-cache` (#505,
   merged), `match-semantics` (#507, merged), `perf/cond-sources-list`
   (`c6cd513c`), `perf/loadstop-info` (`728b73f1`) and
   `perf/loadstop-info-check` (`125cc3a7`). Only locally:
