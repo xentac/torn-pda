@@ -1932,14 +1932,15 @@ raise its version in `_registry`, follow the rules at the top of
 text must ask the maintainer to update the Remote Config copy. A
 change to a default userscript must raise its `@version`.
 
-The observer rule (the user's policy, 2026-11-05): PDA's own
-observers find their elements from the mutation records, not with a
-query over the whole page. In this order: observe the smallest root
-that can change, find elements from the records (`node.matches` and
-`node.querySelector` on added nodes, `record.target` for text),
-do large work once for each frame or timeout, and disconnect when the
-job is done. Scroll and resize have no records, so they get a
-once-per-frame limit.
+The observer rule (the user's policy, 2026-11-05): every query in a
+callback of a PDA observer runs inside the observer's context, never
+on `document`. Observe the smallest element that can change. Query
+inside that element, or inside the changed nodes (`node.matches` and
+`node.querySelector` on added nodes, `record.target` for text). A
+root of `document.body` makes the context the whole page, so the
+small root comes first. Do large work once for each frame or
+timeout, and disconnect when the job is done. Scroll and resize have
+no records, so they get a once-per-frame limit.
 
 ### Fix 1.7, part 1: the end scripts together
 
