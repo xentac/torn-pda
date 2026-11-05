@@ -87,6 +87,10 @@ Last update: 2026-11-04 (fifteenth session).
     the record.
   - `57955d23`: the first try of fix 1.8, which did not work. Only for
     the record in "Fix 1.8: the platform-ready wait".
+  - `56a2b4e0`: `perf/analysis` on `develop` at `28d0d74e`. The base
+    for finding 1.5. Fifteenth session.
+  - `0ee0a6e2`: `56a2b4e0` with `useOnLoadResource: false` (local
+    branch `perf/olr-off`). Only for the upper bound of finding 1.5.
 - Emulator snapshots for replay: `replay-ready` is the A1 snapshot. Keep
   it. `replay-ready-b1` (eighth session) has the test userscripts and
   PDA's five example scripts. Use it for all B1 work, with
@@ -1608,7 +1612,7 @@ What the plugin allows:
   sends through a PDA handler (`addJavaScriptHandler`) to the same
   Dart code.
 
-The plan (given to the user, waits for the go-ahead):
+The plan (the user approved step 1):
 
 1. Find the upper bound of the gain. Build `56a2b4e0` with only
    `useOnLoadResource: false` (the patch is `olr-off.diff` in the
@@ -1624,6 +1628,32 @@ The plan (given to the user, waits for the go-ahead):
    Then make sure with the same runs that the gain stays.
 3. Write the test plan for Android and iOS: trades, vault, jail,
    bounties, the faction armoury quick items, and renderer recovery.
+
+Step 1, the result. The measurement build is `0ee0a6e2` (local branch
+`perf/olr-off`, APK `~/pda-recordings/apks/0ee0a6e2.apk`). All 12 runs
+passed (`20261104T233914Z` to `20261105T000828Z`). The script is
+`~/pda-recordings/olr_ab.py`. The table gives the two runs of each
+build, in ms. "httpGet" is the mean round trip of `PDA_httpGet` in
+the page.
+
+| Page | httpGet, on | httpGet, off | `onLoadStop`, on | `onLoadStop`, off | `nav.load`, on | `nav.load`, off |
+|---|---|---|---|---|---|---|
+| `profiles.php` | 116, 144 | 218, 126 | 219, 124 | 489, 220 | 974, 979 | 1229, 964 |
+| `sid=attack` | 34, 64 | 22, 33 | 127, 227 | 116, 130 | 909, 928 | 906, 909 |
+| `sid=attackLog` | 94, 95 | 79, 64 | 216, 198 | 169, 153 | 1193, 1211 | 1237, 1163 |
+| `step=your` | 60, 71 | 61, 25 | 529, 476 | 560, 631 | 1918, 1616 | 1655, 1631 |
+| `step=your&type=N` | 54, 32 | 26, 35 | 241, 285 | 311, 291 | 1294, 1568 | 1230, 1277 |
+| `sid=crimes` | 57, 120 | 53, 60 | 839, 1037 | 838, 790 | 906, 951 | 898, 986 |
+
+- The off build sends 0 messages, against 87 to 307 per page.
+- No value moves the same way on all pages. The `PDA_httpGet` wait
+  is lower on four pages and higher on `profiles.php`. `onLoadStop`
+  is lower on three pages and higher on three. `nav.load`, long
+  tasks, frame gaps and the Dart lag show no change.
+- So the upper bound of fix 1.5 is inside the spread of 2 runs.
+  Under the rule "no PR without a measured gain", stop here.
+  Only 8 or more runs per build can show a small gain (about
+  10 to 30 ms on the bridge waits). That costs about 2 hours.
 
 ### Fix 1.7, part 1: the end scripts together
 
