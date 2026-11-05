@@ -1657,6 +1657,20 @@ the page.
   Only 8 or more runs per build can show a small gain (about
   10 to 30 ms on the bridge waits). That costs about 2 hours.
 
+Branches, end of the fifteenth session (the user asked to delete the
+branches that are not needed):
+
+- To delete, on the fork and locally: `cond-sources-cache` (#505,
+  merged), `match-semantics` (#507, merged), `perf/cond-sources-list`
+  (`c6cd513c`), `perf/loadstop-info` (`728b73f1`) and
+  `perf/loadstop-info-check` (`125cc3a7`). Only locally:
+  `perf/analysis-pre-rebase` (`e9d0157b`) and `perf/olr-off`
+  (`0ee0a6e2`). The APKs stay.
+- To keep: `onload-stop-one-wait` with `perf/ols-send` and
+  `perf/ols-trips` (the PR is not open yet), `start-guard` (#508), the
+  five measurement branches of the twelfth session (until #508 is
+  merged), and `perf/analysis-backup` (never push it).
+
 ### Fix 1.7, part 1: the end scripts together
 
 Done on 2026-11-03 (tenth session). `origin/develop` had no such change
