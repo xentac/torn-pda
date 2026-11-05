@@ -1919,6 +1919,19 @@ runs the longest with a document query in each batch. The bazaar
 callback scans each added node twice. Each callback that adds
 buttons starts one more batch, which then finds nothing to do.
 
+Versions (the user's rule: bump the version of any script that PDA
+keeps up to date). The chain reader, hospital, quick items, bazaar
+and bank vault scripts are plain strings in Dart. They have no
+version and ship with the app. Shop max is in the remote snippet
+`city_shops_max` (`1.0.1`) and buy max in `travel_buy_max`
+(`1.0.2`). Remote Config can replace a snippet with a copy whose
+version is newer than the compiled base
+(`RemoteSnippets.usingOverride`). So a change to one of them must
+raise its version in `_registry`, follow the rules at the top of
+`remote_snippets.dart` (no backticks, no backslashes), and the PR
+text must ask the maintainer to update the Remote Config copy. A
+change to a default userscript must raise its `@version`.
+
 ### Fix 1.7, part 1: the end scripts together
 
 Done on 2026-11-03 (tenth session). `origin/develop` had no such change
