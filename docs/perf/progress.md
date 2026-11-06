@@ -1194,12 +1194,17 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    - The user's separate script for Torn's stuck tooltips is described
      in `~/coding/torn/torn-touch-tooltips` (local repo, no GitHub
      repo yet). It is for a separate session, not part of this work.
-   - Local only: the test branch `test/observers` (`cd9a6c60`, all
-     three changes) and its APKs `04dd3ee7-test.apk` and
-     `cd9a6c60-test.apk`. The worktrees of this session are in its
-     scratchpad (`wt-picker`, `wt-restore`, `wt-hospital`, `wt-test`).
-     The worktrees of the fifteenth and sixteenth sessions are still
-     registered too. Ask the user before you remove any of them.
+   - Cleanup (2026-11-06, the user asked for it): all worktrees are
+     removed, and only the main checkout is left. The branches of the
+     open PRs and their measurement branches stay (`perf/start-skip`,
+     `perf/start-guard`, `perf/start-register-all`, `perf/reg-timing`
+     for #508, `perf/ols-send` and `perf/ols-trips` for #509,
+     `perf/chain-bar-observer` for #510), and `perf/analysis-backup`
+     (never push it). The permission check blocked three deletes, so
+     the user does them: `git branch -D test/observers
+     perf/match-semantics` and `git push xentac --delete
+     userscript-ready-ping`. The test APKs `04dd3ee7-test.apk` and
+     `cd9a6c60-test.apk` stay.
    - Still open from before: whether to measure garbage collection
      with a `v8.gc` trace, the iOS test plan for #509, finding 1.9,
      tier 3, version 17 of the report artifact, the Greasy Fork pages,
