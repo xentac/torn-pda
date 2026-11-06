@@ -1157,7 +1157,14 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
      player's bazaar (`bazaar.php?userId=...`), whether the rows
      change on scroll in a long bazaar, and yes or no for part 4.
      Then bring the plan again before any code.
-   - Next: ask the user about shop max and buy max
+   - Deferred (the user's choice, 2026-11-06): shop max and buy max.
+     Both run only on their own pages: shop max when the URL has
+     `shops.php` or `bigalgunshop.php` (`_assessCityShopBuy100`), buy
+     max only abroad on the travel page (`travel_handler.dart`), each
+     behind its setting. So they are not critical. The quick items
+     temporary cache observer starts only after a tap on a temporary
+     quick item, on `item.php`, and its callback already queries only
+     inside the added nodes. Before, the plan was to ask the user about shop max and buy max
      (`remote_snippets.dart:614` and `:1014`) before any change. They
      are remote snippets, so a change raises their version (see
      "Versions").
