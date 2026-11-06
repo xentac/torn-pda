@@ -2034,7 +2034,16 @@ picker is on, the picker kept its first copy in
 `data-pda-actions-html` and restored that copy on close. The user chose
 a separate small PR: `picker-restore-icons` saves the list each time the
 picker puts its button in (the button is not there, so the list is
-Torn's latest render). On the test page, both rows get their icons back,
+Torn's latest render). Live test with the real account (the user, on
+the emulator, 2026-11-06), forced through the DevTools protocol
+(`<scratchpad>/cdp/`: `prepare.js` empties one row's actions,
+`late.js` puts them back while the picker is on, `check.js` reads the
+row): on `04dd3ee7` (no fix) the Cannabis row stayed empty after the
+close; on `cd9a6c60` (`test/observers` with all three changes) its
+icons came back. The picker button's `title` makes a Torn tooltip that
+stays after the picker closes (old code too). After a rotation the
+emulator window stopped passing clicks; `adb shell input tap` still
+worked, so the app was not frozen. On the test page, both rows get their icons back,
 alone and with the observer change. The 8 steps of the main test give
 the same HTML as the old script.
 
