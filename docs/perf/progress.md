@@ -416,6 +416,7 @@ table when a PR is opened, changed or closed.
 
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
+| Hospital timer observer | none (checked in headless Chromium) | `hospital-timer-observer` (commit `e8b7bfaf`, on `origin/develop` `28d0d74e`, local only) | none | Ready. Not pushed. The user tests it on a live attack page. See "The hospital timer (seventeenth session)". |
 | Quick items picker observer | none (checked in headless Chromium) | `picker-observer` (commit `ebcaa3df`, on `origin/develop` `28d0d74e`, local only) | none | Ready. Not pushed. See "The quick items picker (seventeenth session)". |
 | Chain reader observer (finding 1.6) | `perf/chain-bar-observer` (`bf83e536`) | `chain-bar-observer` (`03335af2`) | [#510](https://github.com/Manuito83/torn-pda/pull/510) | Open since 2026-11-06. |
 | `onLoadStop` awaits only the copy | `perf/ols-send` (`65ace9f9`) | `onload-stop-one-wait` (commit `39609cb1`, on `origin/develop` `28d0d74e`) | [#509](https://github.com/Manuito83/torn-pda/pull/509) | Open since 2026-11-05. It conflicts with #508 at the end of `_injectMissingDocumentStartScripts` (see "Start of the fifteenth session"). |
@@ -2014,6 +2015,39 @@ In this headless page, `requestAnimationFrame` stops after the first
 frames. The test replaces it with a 16 ms timer for both versions. In
 the app, a hidden WebView also pauses frames, and the pending check
 runs when the page shows again.
+
+### The hospital timer (seventeenth session)
+
+PDA gets the target's `status.until` from the API when an attack page
+opens (from the attack check widget, or one v1 call to
+`getOtherProfileBasic`). If the state is "Hospital", it injects
+`hospitalTimerJS(until)`. A 1-second interval writes the countdown over
+the "In hospital" title of the defender panel. A body observer with
+`characterData` wrote it again after React reset the text, with a
+document query in each batch.
+
+The change (the user agreed to the plan):
+
+- The observer watches the defender panel (`[class*="defender___"]`)
+  with `subtree` and `characterData`, and the panel's parent with
+  `childList` only, so that a replaced panel arrives as a record.
+- The callback takes the titles from the records (`closest` from the
+  target, `matches` and `querySelectorAll` on added nodes), keeps only
+  those in a defender panel, and writes the countdown if the text says
+  "in hospital" without "In hospital for". Then it moves the observer
+  to that title's panel if the panel changed.
+- The interval searches the known panel first, and the document only
+  if the panel is gone. The script looks for the panel once at the
+  start, so the observer usually exists before the first tick.
+
+The check (`<scratchpad>/hosptest/`): old and new script on a fake
+attack page, with 3700 s and with 3 s left. Steps: start, first tick,
+text reset, text node reset, title replaced, panel replaced, reset in
+the new panel, 200 changes outside the panel, the next ticks and the
+end. The title text is the same in both versions after every step. For
+the 200 outside changes, the old script made 200 document queries, the
+new one none. The old script made 2 document queries each second, the
+new one 1 panel query.
 
 ### Fix 1.7, part 1: the end scripts together
 
