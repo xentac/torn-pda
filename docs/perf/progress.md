@@ -439,8 +439,24 @@ To see the state of all PRs:
 gh pr list -R Manuito83/torn-pda --author xentac --state all
 ```
 
-- CI on `develop` is green again since `610af44f`. The stub
-  `lib/config/chat_engine.dart.example` now has `recheck`.
+- CI on `develop` is red again since `948c2495` ("Chat notification
+  reply with the native login"). `lib/utils/chat_notifications.dart`
+  calls `readNativeApiToken` and `playerIdFromApiToken`, and the stub
+  `lib/config/chat_engine.dart.example` does not have them. Analyze,
+  Build APK, Build iOS and Test fail on all open PRs (#508 to #513)
+  for this reason only (checked 2026-11-06, eighteenth session). The
+  analyzer finds no other error, and every failed test is a load
+  failure. The set of failed test files is the same as on `develop`
+  (run `41896330970`), with two differences. On #510 to #513, the log
+  adds 89 lines "webview_panels_stack_test.dart (failed after test
+  completion)", but the count stays 89 failed, as on `develop`. On
+  #508, `test/models/userscript_model_test.dart` also fails to load,
+  because its new test imports `userscripts_provider.dart`, which
+  reaches `chat_notifications.dart`. So CI on #508 runs none of the
+  model tests (111 passed instead of 165). The cause is still the
+  stub, but #508 makes it hide more tests. A fix: move the new
+  provider test to its own file. It needs a force push of
+  `start-guard`, so ask first.
 - Measure each new fix against `perf/analysis` without the open fixes, so
   that each comparison shows one fix.
 - When a PR is merged, rebase `perf/analysis` on `origin/develop`. In a
