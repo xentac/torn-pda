@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-06 (seventeenth session).
+Last update: 2026-11-06 (end of the seventeenth session).
 
 ## State
 
@@ -420,9 +420,9 @@ table when a PR is opened, changed or closed.
 
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
-| Hospital timer observer | none (checked in headless Chromium) | `hospital-timer-observer` (commit `e8b7bfaf`, on `origin/develop` `28d0d74e`, pushed to the fork on 2026-11-06) | none | Ready, and tested live by the user (build `04dd3ee7`). PR text in `~/pda-recordings/pr-hospital-timer-observer.md`. See "The hospital timer (seventeenth session)". |
-| Picker restores Torn's latest actions (bug fix) | none | `picker-restore-icons` (commits `b73a3d7e` and `37e4cc73`, on `origin/develop` `28d0d74e`, pushed to the fork on 2026-11-06) | none | Ready, the restore part tested live. The second commit drops the button `title` (it made a Torn tooltip that stayed). PR text in `~/pda-recordings/pr-picker-restore-icons.md`. Independent of `picker-observer`, and both apply together without a conflict. |
-| Quick items picker observer | none (checked in headless Chromium) | `picker-observer` (commit `ebcaa3df`, on `origin/develop` `28d0d74e`, pushed to the fork on 2026-11-06) | none | Ready, and tested live by the user. PR text in `~/pda-recordings/pr-picker-observer.md`. See "The quick items picker (seventeenth session)". |
+| Hospital timer observer | none (checked in headless Chromium) | `hospital-timer-observer` (commit `e8b7bfaf`, on `origin/develop` `28d0d74e`, pushed to the fork on 2026-11-06) | [#513](https://github.com/Manuito83/torn-pda/pull/513) | Open since 2026-11-06. Tested live by the user (build `04dd3ee7`). PR text in `~/pda-recordings/pr-hospital-timer-observer.md`. See "The hospital timer (seventeenth session)". |
+| Picker restores Torn's latest actions (bug fix) | none | `picker-restore-icons` (commits `b73a3d7e` and `37e4cc73`, on `origin/develop` `28d0d74e`, pushed to the fork on 2026-11-06) | [#511](https://github.com/Manuito83/torn-pda/pull/511) | Open since 2026-11-06. The restore part tested live. The second commit drops the button `title` (it made a Torn tooltip that stayed). PR text in `~/pda-recordings/pr-picker-restore-icons.md`. Independent of `picker-observer`, and both apply together without a conflict. |
+| Quick items picker observer | none (checked in headless Chromium) | `picker-observer` (commit `ebcaa3df`, on `origin/develop` `28d0d74e`, pushed to the fork on 2026-11-06) | [#512](https://github.com/Manuito83/torn-pda/pull/512) | Open since 2026-11-06. Tested live by the user. PR text in `~/pda-recordings/pr-picker-observer.md`. See "The quick items picker (seventeenth session)". |
 | Chain reader observer (finding 1.6) | `perf/chain-bar-observer` (`bf83e536`) | `chain-bar-observer` (`03335af2`) | [#510](https://github.com/Manuito83/torn-pda/pull/510) | Open since 2026-11-06. |
 | `onLoadStop` awaits only the copy | `perf/ols-send` (`65ace9f9`) | `onload-stop-one-wait` (commit `39609cb1`, on `origin/develop` `28d0d74e`) | [#509](https://github.com/Manuito83/torn-pda/pull/509) | Open since 2026-11-05. It conflicts with #508 at the end of `_injectMissingDocumentStartScripts` (see "Start of the fifteenth session"). |
 | GM handler crashes after renderer recovery (before this project) | none | `fix/gm-handler-reinject` | [#480](https://github.com/Manuito83/torn-pda/pull/480) | Merged on 2026-07-22. |
@@ -1131,6 +1131,71 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    | `step=your` | 1647 | 213 / 2 | 638 / 4 |
    | `step=your&type=N` | 1386 | 241 / 3 | 388 / 3 |
    | `sid=crimes` | 955 | 760 / 3 | 1314 / 5 |
+
+   Start of the eighteenth session. At the end of the seventeenth
+   session:
+
+   - Open PRs: #508, #509, #510 (chain bar), #511 (picker restores
+     Torn's latest actions, and no button `title`), #512 (picker
+     observer) and #513 (hospital timer observer). #511 and #512
+     change the same file and apply together without a conflict. Run
+     the `gh pr list` command in "State". If one was merged, update
+     the table and rebase `perf/analysis` (see the rules under the PR
+     table). The PR texts are in `~/pda-recordings/pr-*.md`.
+   - The next task (the user chose the order): the bazaar fill
+     (`js_snippets.dart:393`, `addOthersBazaarFillButtonsJS`), with
+     the observer rule. The plan, given to the user: (1) remove the
+     second `fastInject(node)` call, which repeats the same scan; (2)
+     skip added nodes that are the script's own `.max-buy`; (3)
+     observe the bazaar item list, with `body` as the fallback; (4)
+     also check the added node itself with `node.matches`, because
+     `node.querySelectorAll` does not return the node. Part 4 changes
+     behavior (a buy button that React adds alone gets a MAX button).
+     It waits on the user: the HTML around the item list on another
+     player's bazaar (`bazaar.php?userId=...`), whether the rows
+     change on scroll in a long bazaar, and yes or no for part 4.
+     Then bring the plan again before any code.
+   - After the bazaar: ask the user about shop max and buy max
+     (`remote_snippets.dart:614` and `:1014`) before any change. They
+     are remote snippets, so a change raises their version (see
+     "Versions").
+   - Method for each script, as in this session: one upstream branch
+     from `origin/develop`, short comments, a headless Chromium test
+     of the old and the new script on a fake page, then a live test
+     by the user on the emulator. The test pages are in
+     `~/pda-recordings/headless/` (`page.html` and `stale.html` for
+     the picker, `hospital.html`). They load script files that a
+     small Python step cuts out of the Dart file: the text between
+     `return '''` (or `return """`) and the closing quotes, with
+     `\${` changed to `${` and `$enabled` or `$until` filled in. In
+     headless Chromium, `requestAnimationFrame` stops after the first
+     frames, so the pages replace it with a 16 ms timer.
+   - Live tests: build a debug APK of a test branch (`origin/develop`
+     with the changes) in a worktree. Copy the ignored private files
+     from the main checkout first (`lib/config/*.dart`,
+     `lib/firebase_options.dart`, `lib/torn-pda-native/`,
+     `android/app/google-services.json`, `android/app/src/main/java/io/`,
+     `android/local.properties`, `android/gradlew*`,
+     `android/gradle/wrapper/gradle-wrapper.jar`, `.envrc`). Start the
+     emulator with `-snapshot live-ready -no-snapshot-save`, remove
+     its proxy (see "Environment"), and `adb install -r` the APK. The
+     WebView debugging socket is on: `~/pda-recordings/cdp/eval.mjs`
+     runs a file in a page over the DevTools protocol (forward the
+     socket first, see the script's usage line).
+   - The user's separate script for Torn's stuck tooltips is described
+     in `~/coding/torn/torn-touch-tooltips` (local repo, no GitHub
+     repo yet). It is for a separate session, not part of this work.
+   - Local only: the test branch `test/observers` (`cd9a6c60`, all
+     three changes) and its APKs `04dd3ee7-test.apk` and
+     `cd9a6c60-test.apk`. The worktrees of this session are in its
+     scratchpad (`wt-picker`, `wt-restore`, `wt-hospital`, `wt-test`).
+     The worktrees of the fifteenth and sixteenth sessions are still
+     registered too. Ask the user before you remove any of them.
+   - Still open from before: whether to measure garbage collection
+     with a `v8.gc` trace, the iOS test plan for #509, finding 1.9,
+     tier 3, version 17 of the report artifact, the Greasy Fork pages,
+     the chat cache trim and the other global observers (bank vault,
+     quick items temporary cache).
 
    Start of the seventeenth session. At the end of the sixteenth
    session:
