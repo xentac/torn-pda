@@ -421,6 +421,7 @@ table when a PR is opened, changed or closed.
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
 | Hospital timer observer | none (checked in headless Chromium) | `hospital-timer-observer` (commit `e8b7bfaf`, on `origin/develop` `28d0d74e`, local only) | none | Ready. Not pushed. The user tests it on a live attack page. See "The hospital timer (seventeenth session)". |
+| Picker restores Torn's latest actions (bug fix) | none | `picker-restore-icons` (commit `b73a3d7e`, on `origin/develop` `28d0d74e`, local only) | none | Ready. Not pushed. Independent of `picker-observer`, and both apply together without a conflict. |
 | Quick items picker observer | none (checked in headless Chromium) | `picker-observer` (commit `ebcaa3df`, on `origin/develop` `28d0d74e`, local only) | none | Ready, and tested live by the user. Not pushed. See "The quick items picker (seventeenth session)". |
 | Chain reader observer (finding 1.6) | `perf/chain-bar-observer` (`bf83e536`) | `chain-bar-observer` (`03335af2`) | [#510](https://github.com/Manuito83/torn-pda/pull/510) | Open since 2026-11-06. |
 | `onLoadStop` awaits only the copy | `perf/ols-send` (`65ace9f9`) | `onload-stop-one-wait` (commit `39609cb1`, on `origin/develop` `28d0d74e`) | [#509](https://github.com/Manuito83/torn-pda/pull/509) | Open since 2026-11-05. It conflicts with #508 at the end of `_injectMissingDocumentStartScripts` (see "Start of the fifteenth session"). |
@@ -2023,6 +2024,19 @@ picker works on `items.php`: tab changes, more items on scroll, a
 rotation, and the buttons in landscape. In landscape the page is 863
 px wide, so Torn's wide layout puts the buttons on the right, with no
 outlines.
+
+In the live test the user once saw rows without Torn's action icons
+(so without buttons) after using the picker. A reload fixed them, and
+the user could not repeat it. The test page (`stale.html`) shows one
+path, in the old and the new script alike: if a row's actions list is
+empty when the picker processes it, or Torn renders it again while the
+picker is on, the picker kept its first copy in
+`data-pda-actions-html` and restored that copy on close. The user chose
+a separate small PR: `picker-restore-icons` saves the list each time the
+picker puts its button in (the button is not there, so the list is
+Torn's latest render). On the test page, both rows get their icons back,
+alone and with the observer change. The 8 steps of the main test give
+the same HTML as the old script.
 
 In this headless page, `requestAnimationFrame` stops after the first
 frames. The test replaces it with a 16 ms timer for both versions. In
