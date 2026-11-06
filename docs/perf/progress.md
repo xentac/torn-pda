@@ -420,7 +420,7 @@ table when a PR is opened, changed or closed.
 
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
-| Hospital timer observer | none (checked in headless Chromium) | `hospital-timer-observer` (commit `e8b7bfaf`, on `origin/develop` `28d0d74e`, local only) | none | Ready. Not pushed. The user tests it on a live attack page. See "The hospital timer (seventeenth session)". |
+| Hospital timer observer | none (checked in headless Chromium) | `hospital-timer-observer` (commit `e8b7bfaf`, on `origin/develop` `28d0d74e`, local only) | none | Ready, and tested live by the user (build `04dd3ee7`). Not pushed. See "The hospital timer (seventeenth session)". |
 | Picker restores Torn's latest actions (bug fix) | none | `picker-restore-icons` (commit `b73a3d7e`, on `origin/develop` `28d0d74e`, local only) | none | Ready. Not pushed. Independent of `picker-observer`, and both apply together without a conflict. |
 | Quick items picker observer | none (checked in headless Chromium) | `picker-observer` (commit `ebcaa3df`, on `origin/develop` `28d0d74e`, local only) | none | Ready, and tested live by the user. Not pushed. See "The quick items picker (seventeenth session)". |
 | Chain reader observer (finding 1.6) | `perf/chain-bar-observer` (`bf83e536`) | `chain-bar-observer` (`03335af2`) | [#510](https://github.com/Manuito83/torn-pda/pull/510) | Open since 2026-11-06. |
