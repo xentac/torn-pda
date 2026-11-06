@@ -421,7 +421,7 @@ table when a PR is opened, changed or closed.
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
 | Hospital timer observer | none (checked in headless Chromium) | `hospital-timer-observer` (commit `e8b7bfaf`, on `origin/develop` `28d0d74e`, local only) | none | Ready. Not pushed. The user tests it on a live attack page. See "The hospital timer (seventeenth session)". |
-| Quick items picker observer | none (checked in headless Chromium) | `picker-observer` (commit `ebcaa3df`, on `origin/develop` `28d0d74e`, local only) | none | Ready. Not pushed. See "The quick items picker (seventeenth session)". |
+| Quick items picker observer | none (checked in headless Chromium) | `picker-observer` (commit `ebcaa3df`, on `origin/develop` `28d0d74e`, local only) | none | Ready, and tested live by the user. Not pushed. See "The quick items picker (seventeenth session)". |
 | Chain reader observer (finding 1.6) | `perf/chain-bar-observer` (`bf83e536`) | `chain-bar-observer` (`03335af2`) | [#510](https://github.com/Manuito83/torn-pda/pull/510) | Open since 2026-11-06. |
 | `onLoadStop` awaits only the copy | `perf/ols-send` (`65ace9f9`) | `onload-stop-one-wait` (commit `39609cb1`, on `origin/develop` `28d0d74e`) | [#509](https://github.com/Manuito83/torn-pda/pull/509) | Open since 2026-11-05. It conflicts with #508 at the end of `_injectMissingDocumentStartScripts` (see "Start of the fifteenth session"). |
 | GM handler crashes after renderer recovery (before this project) | none | `fix/gm-handler-reinject` | [#480](https://github.com/Manuito83/torn-pda/pull/480) | Merged on 2026-07-22. |
@@ -2014,6 +2014,15 @@ step, old / new:
 | 30 scroll events | 60 / 0 | 30 / 0 | 480 / 0 |
 | Tab fill | 4 / 0 | 2 / 0 | 50 / 16 |
 | Resize | 20 / 2 | 10 / 0 | 180 / 19 |
+
+Live test (2026-11-06): the user ran the test build `04dd3ee7`
+(`test/observers`, `origin/develop` with the picker and hospital
+commits, APK `~/pda-recordings/apks/04dd3ee7-test.apk`) with the real
+account on the emulator (`live-ready`, no save, proxy removed). The
+picker works on `items.php`: tab changes, more items on scroll, a
+rotation, and the buttons in landscape. In landscape the page is 863
+px wide, so Torn's wide layout puts the buttons on the right, with no
+outlines.
 
 In this headless page, `requestAnimationFrame` stops after the first
 frames. The test replaces it with a 16 ms timer for both versions. In
