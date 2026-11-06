@@ -2407,6 +2407,26 @@ Step 0 results (2026-11-06):
   without a background load will show almost nothing. Step 1 decides
   the background load.
 
+Step 1 plan (the live pass, given to the user on 2026-11-06):
+
+- Emulator `dev` (2 GB), snapshot `live-ready`, `-no-snapshot-save`.
+  The 4 GB copy has no login. Proxy: `PDA_KEEP_CACHE=1
+  tools/replay/capture.sh tabs-live`. It only listens, and it records
+  to `~/pda-recordings/raw/` (never in git), with the websocket frames
+  of the hidden tabs. `adb install -r` the `56a2b4e0` APK (it has
+  `PDA_PERF` and `PDA_PROXY`, so a proxy must run). The user makes
+  sure that a Torn page loads.
+- Keep logcat open on `Slept tab|Blank page detected|renderer`.
+- The floor: one tab, `index.php`, visible. Wait 2 minutes. Read
+  `task.mjs 60` three times, the CPU time (`/proc/<pid>/stat`) of the
+  app and the renderer, and the renderer PSS.
+- The user opens 7 tabs, then goes back to tab 1: `factions.php?step=your`,
+  `item.php`, `gym.php`, `page.php?sid=crimes`, `jailview.php`,
+  `hospitalview.php`, `travelagency.php`. Wait 2 minutes, and read the
+  same values, then `live.mjs 60` once. Read all again at 6 minutes
+  hidden, because Chromium throttles hidden timers more after 5
+  minutes.
+
 ### Fix 1.7, part 1: the end scripts together
 
 Done on 2026-11-03 (tenth session). `origin/develop` had no such change
