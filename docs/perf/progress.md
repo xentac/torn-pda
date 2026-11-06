@@ -137,6 +137,10 @@ Last update: 2026-11-06 (seventeenth session).
 - Emulator snapshots:
   - `live-ready`: your real key and website login. Load it before a capture.
     Never load it for a replay run.
+    It has a system proxy, `10.0.2.2:8080`. For a live test without
+    mitmproxy, start it with `-no-snapshot-save` and remove the proxy:
+    `adb shell settings put global http_proxy :0`. Otherwise PDA shows
+    `ERR_PROXY_CONNECTION_FAILED`.
   - `replay-ready`: the fake user, built by `make-snapshot.sh`. Tests start
     from it.
 - Recordings, `identity.json` and `idmap.json` are in `~/pda-recordings`, never
