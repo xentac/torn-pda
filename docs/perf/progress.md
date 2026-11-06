@@ -2195,8 +2195,11 @@ new one 1 panel query.
 
 ### Too many awake tabs: the test design (eighteenth session)
 
-Status: design only, given to the user on 2026-11-06. Nothing is
-built. It waits on the questions at the end of this section.
+Status: the user answered on 2026-11-06. Step 1 (live pass): yes, the
+user drives the emulator and opens the pages that the notes name. The
+4 GB AVD copy: yes. The foreground flow: faction, not attack, because
+it gives more CPU and memory pressure. Step 0 first: yes. Step 0 is
+done (see "Step 0 results" below).
 
 The goal: measure the cost of background tabs on the visible tab, with
 the settings that exist today. Report section: "Too many awake tabs".
@@ -2320,11 +2323,17 @@ Emulator configuration, so that background tabs stay awake:
   turn off "Suspend execution for cached apps".
 - Keep the tab sleep override at 0. Otherwise the home trip of C3 and
   C4 sleeps tabs. Keep "do not pause webview" off, and lock no tab.
-- Remote Config: the replay never forwards a request, so Firebase gets
-  a 502. PDA then uses its in-app defaults (`drawer.dart:738`) or the
-  values saved in the snapshot. Make sure that the browser settings
-  screen of the snapshot shows the defaults. The conditions use the
-  user override in any case.
+- Remote Config: `PDA_PASSTHROUGH` in `common.sh` lets Firebase and
+  Google hosts through to the live services, also in replay. So PDA
+  gets the live Remote Config values. On 2026-11-06, the browser
+  settings screen of `replay-ready-tabs` showed the defaults: "Rest
+  tabs while you are away" Default (off), "Sleep unused tabs after"
+  Default (12 hours), "Maximum loaded tabs" Default (No limit). The
+  conditions use the user override in any case. Write the values
+  down again before step 2, because Remote Config can change.
+- "Recover blank pages automatically" (on by default) also sleeps all
+  hidden tabs when it finds a blank page. Its log line starts with
+  `Blank page detected`. A run with this line is not valid.
 
 Not in this item: `rendererPriorityPolicy` `WAIVED` for hidden tabs.
 It is a code change, and it changes which process Android stops under
@@ -2340,6 +2349,54 @@ Questions for the user:
 2. The AVD copy with 4 GB: yes or no.
 3. The foreground flow: attack (the proposal) or faction.
 4. Do step 0 first and report its result before step 2 (the proposal).
+
+Step 0 results (2026-11-06):
+
+- The AVD copy `dev-tabs` (`~/.android/avd/dev-tabs.avd`, `hw.ramSize=4G`)
+  is a copy of `dev` without its snapshots. Its disk overlay names its
+  base file by a relative path, so the copy is complete. It has the
+  same WebView (133.0.6943.137). Start it as `dev`, with
+  `-avd dev-tabs`, through the dev shell (`nix develop
+  ~/coding/infra/nixos-config#torn-pda -c emulator ...`).
+- Snapshot `replay-ready-tabs` on `dev-tabs`: built by
+  `make-snapshot.sh` (`PDA_SNAPSHOT=replay-ready-tabs`, recordings
+  onboarding, faction, attack) with the `56a2b4e0` APK. Its `lib/`
+  is the same as `perf/analysis` now. After the script, "Deep links
+  open in new tab" was turned on by hand (Settings, the globe icon of
+  "Advanced browser settings", section "Deep links"). Then the
+  snapshot was saved again on PDA's Settings page. So each
+  `tornpda://` link opens a new tab.
+- Open a tab: `adb shell am start -a android.intent.action.VIEW -d
+  "'tornpda://www.torn.com/...'" com.manuito.tornpda`. Wait more than
+  1.5 s between two links, because PDA drops a second browser open
+  within 1.5 s. The first tab is the globe icon at the left of the
+  tab bar (`adb shell input tap 60 2284`).
+- Tools: `~/pda-recordings/cdp/hidden.mjs` (timer and frame check, it
+  injects a 100 ms `setInterval` and a `requestAnimationFrame` loop),
+  `task.mjs` (the renderer main-thread time, injects nothing) and
+  `live.mjs` (each page's `ScriptDuration`, requests and websocket
+  frames, injects nothing). `TaskDuration` is the same value in every
+  page target, so it counts the whole renderer main thread.
+  `ScriptDuration` is for each page.
+- Hidden tabs are throttled. Three hidden replay tabs (faction
+  `step=your`, crimes hub, profile) had `visibilityState` `hidden`.
+  Their 100 ms timer ran 20 to 30 times in 30 s (about once each
+  second), and `requestAnimationFrame` stopped (1 call in 30 s). The
+  visible tab ran 300 timer calls and 1799 frames in 30 s.
+- The cost of three settled hidden replay tabs is small. With nothing
+  injected, the renderer main thread worked 87, 124 and 220 ms in
+  30 s (3 reads). With no Torn tab open, it worked 0 to 13 ms in 30 s.
+  So the three tabs used about 0.3 to 0.7 % of the main thread. In
+  the 30 s after the tabs opened, it was 941 ms (3 %), with 112 to
+  223 ms of script for each hidden page. Wait 2 minutes after the last
+  tab opens before a measurement.
+- In replay, a hidden Torn page tries the chat websocket again after
+  each 502: 19 tries each minute for 3 pages. It also polls
+  `onlinestatus.php?idle` (5 each minute for 3 pages). On the live
+  site, the socket stays open and gets chat messages. Websocket
+  messages are not throttled like timers. So the replay A/B (step 2)
+  without a background load will show almost nothing. Step 1 decides
+  the background load.
 
 ### Fix 1.7, part 1: the end scripts together
 
