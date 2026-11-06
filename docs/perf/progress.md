@@ -421,7 +421,7 @@ table when a PR is opened, changed or closed.
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
 | Hospital timer observer | none (checked in headless Chromium) | `hospital-timer-observer` (commit `e8b7bfaf`, on `origin/develop` `28d0d74e`, local only) | none | Ready, and tested live by the user (build `04dd3ee7`). Not pushed. See "The hospital timer (seventeenth session)". |
-| Picker restores Torn's latest actions (bug fix) | none | `picker-restore-icons` (commit `b73a3d7e`, on `origin/develop` `28d0d74e`, local only) | none | Ready. Not pushed. Independent of `picker-observer`, and both apply together without a conflict. |
+| Picker restores Torn's latest actions (bug fix) | none | `picker-restore-icons` (commits `b73a3d7e` and `37e4cc73`, on `origin/develop` `28d0d74e`, local only) | none | Ready, the restore part tested live. The second commit drops the button `title` (it made a Torn tooltip that stayed). Not pushed. Independent of `picker-observer`, and both apply together without a conflict. |
 | Quick items picker observer | none (checked in headless Chromium) | `picker-observer` (commit `ebcaa3df`, on `origin/develop` `28d0d74e`, local only) | none | Ready, and tested live by the user. Not pushed. See "The quick items picker (seventeenth session)". |
 | Chain reader observer (finding 1.6) | `perf/chain-bar-observer` (`bf83e536`) | `chain-bar-observer` (`03335af2`) | [#510](https://github.com/Manuito83/torn-pda/pull/510) | Open since 2026-11-06. |
 | `onLoadStop` awaits only the copy | `perf/ols-send` (`65ace9f9`) | `onload-stop-one-wait` (commit `39609cb1`, on `origin/develop` `28d0d74e`) | [#509](https://github.com/Manuito83/torn-pda/pull/509) | Open since 2026-11-05. It conflicts with #508 at the end of `_injectMissingDocumentStartScripts` (see "Start of the fifteenth session"). |
@@ -2043,7 +2043,14 @@ close; on `cd9a6c60` (`test/observers` with all three changes) its
 icons came back. The picker button's `title` makes a Torn tooltip that
 stays after the picker closes (old code too). After a rotation the
 emulator window stopped passing clicks; `adb shell input tap` still
-worked, so the app was not frozen. On the test page, both rows get their icons back,
+worked, so the app was not frozen. Torn's stuck tooltips: Torn uses jQuery UI 1.9.1 tooltips
+(`initializeTooltip` in `common.js`). They close only on `mouseleave`,
+`focusout`, Escape or a jQuery removal, so on touch screens a tooltip
+stays when its element is removed without jQuery. The user wants a
+separate Greasy Fork script for that, written in a later session. Its
+repo is `~/coding/torn/torn-touch-tooltips` (local only, no GitHub
+repo yet): the README has the facts, the design and the test plan,
+and `BUG_REPORT.md` has a draft for Torn. On the test page, both rows get their icons back,
 alone and with the observer change. The 8 steps of the main test give
 the same HTML as the old script.
 
