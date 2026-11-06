@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-05 (sixteenth session).
+Last update: 2026-11-06 (seventeenth session).
 
 ## State
 
@@ -416,6 +416,8 @@ table when a PR is opened, changed or closed.
 
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
+| Quick items picker observer | none (checked in headless Chromium) | `picker-observer` (commit `ebcaa3df`, on `origin/develop` `28d0d74e`, local only) | none | Ready. Not pushed. See "The quick items picker (seventeenth session)". |
+| Chain reader observer (finding 1.6) | `perf/chain-bar-observer` (`bf83e536`) | `chain-bar-observer` (`03335af2`) | [#510](https://github.com/Manuito83/torn-pda/pull/510) | Open since 2026-11-06. |
 | `onLoadStop` awaits only the copy | `perf/ols-send` (`65ace9f9`) | `onload-stop-one-wait` (commit `39609cb1`, on `origin/develop` `28d0d74e`) | [#509](https://github.com/Manuito83/torn-pda/pull/509) | Open since 2026-11-05. It conflicts with #508 at the end of `_injectMissingDocumentStartScripts` (see "Start of the fifteenth session"). |
 | GM handler crashes after renderer recovery (before this project) | none | `fix/gm-handler-reinject` | [#480](https://github.com/Manuito83/torn-pda/pull/480) | Merged on 2026-07-22. |
 | B1 1.7 part 4, start script skip and page `@match` check | `perf/start-skip` (`81da92e3`), `perf/start-guard` (`cbfa3236`) | `start-guard` (commit `9b523b82`, on `match-semantics` plus the #505 commit, pushed to the fork on 2026-11-03) | [#508](https://github.com/Manuito83/torn-pda/pull/508) | Open since 2026-11-04. #505 and #507 are merged now. The maintainer's `74a51407` matches a pattern that has a `#` against the full URL, and the rest without the hash. `start-guard` is rebased on `28d0d74e` as `161d6d62` and force-pushed: the page guard follows the same rule, and the guard test has two `#` patterns. 98 model tests pass. |
@@ -1960,6 +1962,58 @@ root of `document.body` makes the context the whole page, so the
 small root comes first. Do large work once for each frame or
 timeout, and disconnect when the job is done. Scroll and resize have
 no records, so they get a once-per-frame limit.
+
+### The quick items picker (seventeenth session)
+
+The picker (`quickItemPickerJS`, `js_quick_items.dart`) watched the
+body. Each batch, scroll event and resize event ran a full pass: a
+document query for all `li[data-item]`, about 10 queries in each item,
+and 2 `getComputedStyle` calls in `isNarrow`.
+
+The user's page snippets: on `items.php`, `#category-wrap` is
+server-rendered and holds all category lists (`ul.items-cont`) and the
+"load more" element. Torn fills the lists on a tab change, and does not
+replace them. The faction Deposit tab has no `li[data-item]`. On the
+faction armoury, `li[data-item] .actions` finds nothing, so the picker
+adds nothing there. On desktop and in PDA, `div.actions` on
+`items.php` has `display: block`, so `isNarrow` ends in its width
+fallback or in the first action `li`.
+
+The change (the user agreed, with no scroll listener):
+
+- Observe `#category-wrap`, or `body` if it does not exist.
+- In a batch, process only `li[data-item]` in the added element nodes,
+  and the item that holds the record target. Skip the button wrap
+  that the script adds.
+- Keep the narrow result in a variable. Compute it at the start, again
+  after the first pass, and on resize at most once for each frame. If
+  it changes, one pass over the root updates the highlights.
+- The resize handler is kept on `window` (`_pdaPickerResize`), so
+  that the disable call, which runs in a new closure, removes it. The
+  old code removed a different function, so its listeners stayed.
+
+The check (`<scratchpad>/pickertest/`, served by `http.server`): the
+old and the new script on a test page with the `items.php` structure,
+widths 1200 and 400 (a fake `innerWidth`). Steps: activation, 3 new
+items, an actions list added late, 200 changes outside the list, 30
+scroll events, a hidden list filled (tab change), a resize across 785
+px, a click on each button, disable. The list HTML after each step and
+the 12 handler calls are the same in both versions. Counts for each
+step, old / new:
+
+| Step | `getComputedStyle` | document queries | element `querySelector` |
+|---|---|---|---|
+| Activation | 2 / 4 | 1 / 0 | 84 / 87 |
+| 3 new items | 4 / 0 | 2 / 0 | 66 / 18 |
+| 200 changes outside the list | 400 / 0 | 200 / 0 | 3200 / 0 |
+| 30 scroll events | 60 / 0 | 30 / 0 | 480 / 0 |
+| Tab fill | 4 / 0 | 2 / 0 | 50 / 16 |
+| Resize | 20 / 2 | 10 / 0 | 180 / 19 |
+
+In this headless page, `requestAnimationFrame` stops after the first
+frames. The test replaces it with a 16 ms timer for both versions. In
+the app, a hidden WebView also pauses frames, and the pending check
+runs when the page shows again.
 
 ### Fix 1.7, part 1: the end scripts together
 
