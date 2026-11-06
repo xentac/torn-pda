@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-06 (end of the seventeenth session).
+Last update: 2026-11-06 (eighteenth session).
 
 ## State
 
@@ -420,7 +420,7 @@ table when a PR is opened, changed or closed.
 
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
-| Hospital timer observer | none (checked in headless Chromium) | `hospital-timer-observer` (commit `e8b7bfaf`, on `origin/develop` `28d0d74e`, pushed to the fork on 2026-11-06) | [#513](https://github.com/Manuito83/torn-pda/pull/513) | Open since 2026-11-06. Tested live by the user (build `04dd3ee7`). PR text in `~/pda-recordings/pr-hospital-timer-observer.md`. See "The hospital timer (seventeenth session)". |
+| Hospital timer observer | none (checked in headless Chromium) | `hospital-timer-observer` (commit `e8b7bfaf`, on `origin/develop` `28d0d74e`, pushed to the fork on 2026-11-06) | [#513](https://github.com/Manuito83/torn-pda/pull/513) | Open since 2026-11-06, no review on 2026-11-06 (eighteenth session). Tested live by the user (build `04dd3ee7`). PR text in `~/pda-recordings/pr-hospital-timer-observer.md`. See "The hospital timer (seventeenth session)". |
 | Picker restores Torn's latest actions (bug fix) | none | `picker-restore-icons` (commits `b73a3d7e` and `37e4cc73`, on `origin/develop` `28d0d74e`, pushed to the fork on 2026-11-06) | [#511](https://github.com/Manuito83/torn-pda/pull/511) | Open since 2026-11-06. The restore part tested live. The second commit drops the button `title` (it made a Torn tooltip that stayed). PR text in `~/pda-recordings/pr-picker-restore-icons.md`. Independent of `picker-observer`, and both apply together without a conflict. |
 | Quick items picker observer | none (checked in headless Chromium) | `picker-observer` (commit `ebcaa3df`, on `origin/develop` `28d0d74e`, pushed to the fork on 2026-11-06) | [#512](https://github.com/Manuito83/torn-pda/pull/512) | Open since 2026-11-06. Tested live by the user. PR text in `~/pda-recordings/pr-picker-observer.md`. See "The quick items picker (seventeenth session)". |
 | Chain reader observer (finding 1.6) | `perf/chain-bar-observer` (`bf83e536`) | `chain-bar-observer` (`03335af2`) | [#510](https://github.com/Manuito83/torn-pda/pull/510) | Open since 2026-11-06. |
@@ -1131,6 +1131,12 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    | `step=your` | 1647 | 213 / 2 | 638 / 4 |
    | `step=your&type=N` | 1386 | 241 / 3 | 388 / 3 |
    | `sid=crimes` | 955 | 760 / 3 | 1314 / 5 |
+
+   Eighteenth session: the PRs #508 to #513 are still open, with no
+   comment or review, and all are mergeable (checked 2026-11-06).
+   `develop` is still at `28d0d74e`. The task is "Too many awake
+   tabs". The test design is in "Too many awake tabs: the test
+   design (eighteenth session)". It waits on the user's answers.
 
    Start of the eighteenth session. At the end of the seventeenth
    session:
@@ -2170,6 +2176,154 @@ end. The title text is the same in both versions after every step. For
 the 200 outside changes, the old script made 200 document queries, the
 new one none. The old script made 2 document queries each second, the
 new one 1 panel query.
+
+### Too many awake tabs: the test design (eighteenth session)
+
+Status: design only, given to the user on 2026-11-06. Nothing is
+built. It waits on the questions at the end of this section.
+
+The goal: measure the cost of background tabs on the visible tab, with
+the settings that exist today. Report section: "Too many awake tabs".
+
+What the code does (`develop` at `28d0d74e`):
+
+- A background tab stays in the widget tree in an `Offstage`
+  (`webview_panels_stack.dart:118`). On Android, PDA calls `pause()`
+  (`WebView.onPause`) on a tab when it leaves the screen
+  (`webview_provider.dart:992`, `:1064`, `:1915`, `:2461`). `onPause`
+  does not stop JavaScript. `pauseTimers` stops it in all WebViews,
+  but PDA calls it only when the app goes to the background.
+- Max live tabs (`maxLiveTabsActive`, default 0 = no limit, smallest
+  choice 4): `_sleepTabsAboveMax` runs when a tab comes on screen and
+  when the setting changes. It sleeps the tabs that were used least
+  recently. A slept tab has no native WebView (`SleepingWebView`), and
+  it loads its page again when the user opens it.
+- Tab sleep (`tabSleepMinutesActive`, default 720 min, smallest choice
+  30): `_sleepOldTabs` runs when the browser closes, and when the app
+  goes to the background if the user chose a period. It never acts
+  while the user is in the browser. Its end state is the same slept tab.
+- Parking (`parkBackgroundTabsActive`, default off, Android only): when
+  the app goes to the background, each hidden live tab loads
+  `about:blank` and pauses. A parked tab goes back to its page when it
+  comes on screen. So after a return to the app, a parked tab costs
+  almost nothing until the user opens it.
+- Lazy load (`onlyLoadTabsWhenUsed`, default on): at app start, a
+  background tab does not load until the user opens it.
+- Memory pressure (`didHaveMemoryPressure`, `main.dart:343`): while the
+  app is in use, it sleeps all hidden tabs at once.
+
+So the question has two parts. What does a hidden, paused tab do on the
+shared renderer main thread and in Dart? How much of that reaches the
+visible tab?
+
+Step 0, a feasibility check (about 30 minutes, existing tools only). On
+the replay snapshot, open 3 Torn pages in tabs and go back to the first
+tab. In each hidden page, read with `~/pda-recordings/cdp/eval.mjs`:
+`document.visibilityState`, the number of calls of a 100 ms
+`setInterval` in 30 s, and whether `requestAnimationFrame` runs. Count
+the requests of each page in the proxy log. The result chooses the
+weight of the next steps:
+
+- If hidden pages run timers at the full rate, the cost grows with the
+  number of tabs, and the replay A/B (step 2) is the main test.
+- If hidden pages run timers about once each second and rAF stops, the
+  renderer cost is small. Step 2 then mainly measures Dart callbacks
+  and memory, and "no change" is a valid result for the report.
+
+Step 1, a live pass (only with the user's approval, because it opens
+several tabs on the real account). The replay answers websockets with a
+502 (`tools/replay/README.md`), so no chat runs in a replay tab. The
+chat is the likely main load of a real background tab. On `live-ready`
+with `-no-snapshot-save` and a debug build, open N real pages, for
+example home, faction, items, profile, gym and attack log. For 5
+minutes, with one tab visible, read for each hidden page target the
+deltas of `TaskDuration` and `ScriptDuration` from
+`Performance.getMetrics`, and the requests and websocket frames each
+minute. This pass has no foreground timing, because the live game is
+too noisy. The result is the main-thread time of a real hidden Torn
+tab, in ms each minute. It also sets the load of the test userscript in
+step 2.
+
+Step 2, the replay A/B:
+
+- Foreground flow: `attack.yaml`, recorded latency, 8 runs for each
+  condition, conditions in alternation in one session.
+- Background pages from the recordings: profile, attack log, faction
+  (`step=your`), faction armory, crimes hub, and two more. When a
+  polled URL has no more recorded answers, the replay gives the last
+  one again, so the polls do not become misses.
+- A test userscript, `perf-bg-load.user.js` (from `perf-churn.user.js`),
+  in each background page. It works only while `document.hidden` is
+  true. It does the work each second that step 1 measured, and it
+  records how often its timer really ran. Without step 1, the replay
+  gives only a lower bound.
+- One new snapshot, `replay-ready-tabs`, with 8 saved tabs. Lazy load
+  keeps tabs 2 to 8 asleep at start. A flow `wake-tabs.yaml` opens each
+  tab once, goes back to tab 1 and waits 30 s for the loads to end.
+
+| Condition | Tabs | Setting (user override) |
+|---|---|---|
+| C0 | 1 live, 7 asleep (never opened) | defaults. The floor. |
+| C1 | 8 live (all opened) | defaults: no limit, parking off |
+| C2 | 4 live, 4 slept | max live tabs 4 |
+| C3 | as C1, then home for 5 s and back | parking off |
+| C4 | as C3 | parking on |
+
+C3 and C4 differ only in the setting. Tab sleep gets no A/B, because
+its end state is the slept tab of C2. One functional check is enough:
+move the clock 31 minutes forward (`emu-clock.sh`, `adb root`), send
+the app to the background, and look for `Slept tab` in the log.
+
+Metrics for each run:
+
+- The probe on the foreground pages: `nav.load`, `probeStart`,
+  `onLoadStop` and the `lag` counts (`summarize.py`).
+- The CPU time of the renderer process and of the app process:
+  `utime` plus `stime` from `/proc/<pid>/stat`, before and after the
+  flow. This total has less noise than the page times.
+- The memory of the renderer (PSS from `dumpsys meminfo`), and the
+  live tab count from the `Blank check` log line.
+- Dart: the callbacks of the hidden tabs, by tab ID, from `PerfTrace`
+  (`onLoadResource`, `onConsoleMessage`, `onProgressChanged`,
+  `setState`).
+- The frame timing, as in "The 60 frames each second".
+
+Noise: from the baseline, `nav.load` varies 2 to 13 % (p25 to p75).
+With 8 runs, a change under about 10 % does not show on the profile
+and faction pages. Use the CPU totals for small effects.
+
+Emulator configuration, so that background tabs stay awake:
+
+- Memory pressure sleeps all hidden tabs at once, and a 2 GB AVD with 8
+  WebViews can cause it. Make a copy of the AVD, `dev-tabs`, with
+  `hw.ramSize=4G`, and build `replay-ready-tabs` on it. Compare runs
+  only within this AVD. A run is not valid if its log has
+  `Slept tab N (force=true)` or a renderer-gone event.
+- Developer options: "Don't keep activities" off, "Background process
+  limit" standard. If the 5 s home trip of C3 and C4 freezes the app,
+  turn off "Suspend execution for cached apps".
+- Keep the tab sleep override at 0. Otherwise the home trip of C3 and
+  C4 sleeps tabs. Keep "do not pause webview" off, and lock no tab.
+- Remote Config: the replay never forwards a request, so Firebase gets
+  a 502. PDA then uses its in-app defaults (`drawer.dart:738`) or the
+  values saved in the snapshot. Make sure that the browser settings
+  screen of the snapshot shows the defaults. The conditions use the
+  user override in any case.
+
+Not in this item: `rendererPriorityPolicy` `WAIVED` for hidden tabs.
+It is a code change, and it changes which process Android stops under
+memory pressure, not the CPU time. Do it after this measurement.
+
+Run time: 5 conditions, 8 runs each, about 3 minutes each run, so about
+2 hours. Run it in the background.
+
+Questions for the user:
+
+1. Step 1 (the live pass) on the real account: yes or no. How many tabs
+   does the user usually keep, and which pages?
+2. The AVD copy with 4 GB: yes or no.
+3. The foreground flow: attack (the proposal) or faction.
+4. Do step 0 first and report its result before step 2 (the proposal).
 
 ### Fix 1.7, part 1: the end scripts together
 
