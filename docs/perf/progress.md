@@ -454,9 +454,9 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
   because its new test imports `userscripts_provider.dart`, which
   reaches `chat_notifications.dart`. So CI on #508 runs none of the
   model tests (111 passed instead of 165). The cause is still the
-  stub, but #508 makes it hide more tests. A fix: move the new
-  provider test to its own file. It needs a force push of
-  `start-guard`, so ask first.
+  stub, but #508 makes it hide more tests. The user's decision
+  (2026-11-06): no change to #508. The maintainer fixes the stub, and
+  then the model tests run again.
 - Measure each new fix against `perf/analysis` without the open fixes, so
   that each comparison shows one fix.
 - When a PR is merged, rebase `perf/analysis` on `origin/develop`. In a
