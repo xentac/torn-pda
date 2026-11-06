@@ -1142,7 +1142,9 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
      the `gh pr list` command in "State". If one was merged, update
      the table and rebase `perf/analysis` (see the rules under the PR
      table). The PR texts are in `~/pda-recordings/pr-*.md`.
-   - The next task (the user chose the order): the bazaar fill
+   - Deferred (the user's choice, 2026-11-06): the bazaar fill. It is
+     useful to do, but the user has no time now to verify it. The plan
+     below stays for later. The bazaar fill
      (`js_snippets.dart:393`, `addOthersBazaarFillButtonsJS`), with
      the observer rule. The plan, given to the user: (1) remove the
      second `fastInject(node)` call, which repeats the same scan; (2)
@@ -1155,7 +1157,7 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
      player's bazaar (`bazaar.php?userId=...`), whether the rows
      change on scroll in a long bazaar, and yes or no for part 4.
      Then bring the plan again before any code.
-   - After the bazaar: ask the user about shop max and buy max
+   - Next: ask the user about shop max and buy max
      (`remote_snippets.dart:614` and `:1014`) before any change. They
      are remote snippets, so a change raises their version (see
      "Versions").
