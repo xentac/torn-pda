@@ -2265,8 +2265,17 @@ step 2.
 
 Step 2, the replay A/B:
 
-- Foreground flow: `attack.yaml`, recorded latency, 8 runs for each
-  condition, conditions in alternation in one session.
+- Foreground flow: `faction.yaml` (the user's choice), recorded
+  latency, 8 runs for each condition, conditions in alternation in one
+  session. With "Deep links open in new tab" on, each `openLink` of
+  the flow opens a new tab (it has 2, lines 10 and 28), and the first
+  faction page stays as a hidden live tab. Change the flow for this
+  test, or turn the setting off after the background tabs are open,
+  so that C0 has no hidden live Torn tab.
+- The CPU arm can show no change: step 0 found that hidden replay tabs
+  use under 1 % of the main thread. That is a result for the report.
+  The renderer memory and the Dart callbacks of the hidden tabs are
+  then the main results.
 - Background pages from the recordings: profile, attack log, faction
   (`step=your`), faction armory, crimes hub, and two more. When a
   polled URL has no more recorded answers, the replay gives the last
