@@ -1165,7 +1165,8 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    `_loadGen++` goes inside the `onLoadStart` wrapper, and the initial
    scripts keep the upstream code (only the handler scripts get
    `_guardedOnce`, because the start source has its own guard now). The
-   20 `PerfTrace.getHtml` calls stay, `flutter analyze lib` is clean,
+   20 `PerfTrace.getHtml` calls stay, the count of `PerfTrace.` calls in
+   each file of `lib/` is the same as before, `flutter analyze lib` is clean,
    and 103 model tests pass. Not pushed yet. The measurement branches
    of #508 to #510 can go now (the rule under the PR table), with the
    user's approval. The awake tabs design is unchanged: the next step is
