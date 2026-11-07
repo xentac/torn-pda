@@ -4,7 +4,7 @@ This file records where the performance work stands, so that a new session can
 continue. The plan is in `report.md`. The record and replay tools are in
 `tools/replay/`, and their README explains how to use them.
 
-Last update: 2026-11-06 (eighteenth session).
+Last update: 2026-11-07 (nineteenth session).
 
 ## State
 
@@ -20,7 +20,11 @@ Last update: 2026-11-06 (eighteenth session).
   (`listen: false`, 500 entries at most) and the show-case timer. PR #501
   had only a counter on top of their travel check, and was merged on
   2026-11-02. See "Next steps".
-- Branch `perf/analysis`, based on `origin/develop` at `5ea591af` since
+- Branch `perf/analysis`, based on `origin/develop` at `3914180d` since
+  the nineteenth session (after the merge of #508 to #513). The old head
+  is the local branch `perf/analysis-pre-3914180d`. The fork still has
+  the old history. Before that, it was based on `28d0d74e` since the
+  fifteenth session, and on `5ea591af` since
   the twelfth session. The rebase had no conflicts, and the local copy
   before it (`perf/analysis-pre-5ea591af`) was deleted after the check
   runs passed. Before that, it was based on `1edf12c5` (the
@@ -420,13 +424,13 @@ table when a PR is opened, changed or closed.
 
 | Fix | Measurement branch | Upstream branch | PR | Status |
 |---|---|---|---|---|
-| Hospital timer observer | none (checked in headless Chromium) | `hospital-timer-observer` (commit `e8b7bfaf`, on `origin/develop` `28d0d74e`, pushed to the fork on 2026-11-06) | [#513](https://github.com/Manuito83/torn-pda/pull/513) | Open since 2026-11-06, no review on 2026-11-06 (eighteenth session). Tested live by the user (build `04dd3ee7`). PR text in `~/pda-recordings/pr-hospital-timer-observer.md`. See "The hospital timer (seventeenth session)". |
-| Picker restores Torn's latest actions (bug fix) | none | `picker-restore-icons` (commits `b73a3d7e` and `37e4cc73`, on `origin/develop` `28d0d74e`, pushed to the fork on 2026-11-06) | [#511](https://github.com/Manuito83/torn-pda/pull/511) | Open since 2026-11-06. The restore part tested live. The second commit drops the button `title` (it made a Torn tooltip that stayed). PR text in `~/pda-recordings/pr-picker-restore-icons.md`. Independent of `picker-observer`, and both apply together without a conflict. |
-| Quick items picker observer | none (checked in headless Chromium) | `picker-observer` (commit `ebcaa3df`, on `origin/develop` `28d0d74e`, pushed to the fork on 2026-11-06) | [#512](https://github.com/Manuito83/torn-pda/pull/512) | Open since 2026-11-06. Tested live by the user. PR text in `~/pda-recordings/pr-picker-observer.md`. See "The quick items picker (seventeenth session)". |
-| Chain reader observer (finding 1.6) | `perf/chain-bar-observer` (`bf83e536`) | `chain-bar-observer` (`03335af2`) | [#510](https://github.com/Manuito83/torn-pda/pull/510) | Open since 2026-11-06. |
-| `onLoadStop` awaits only the copy | `perf/ols-send` (`65ace9f9`) | `onload-stop-one-wait` (commit `39609cb1`, on `origin/develop` `28d0d74e`) | [#509](https://github.com/Manuito83/torn-pda/pull/509) | Open since 2026-11-05. It conflicts with #508 at the end of `_injectMissingDocumentStartScripts` (see "Start of the fifteenth session"). |
+| Hospital timer observer | none (checked in headless Chromium) | `hospital-timer-observer` (commit `e8b7bfaf`, on `origin/develop` `28d0d74e`, pushed to the fork on 2026-11-06) | [#513](https://github.com/Manuito83/torn-pda/pull/513) | Merged on 2026-11-07 as `8009c7e9`. The maintainer then changed the panel query to the `PANEL` and `TITLE` constants (`bf663eb2`). |
+| Picker restores Torn's latest actions (bug fix) | none | `picker-restore-icons` (commits `b73a3d7e` and `37e4cc73`, on `origin/develop` `28d0d74e`, pushed to the fork on 2026-11-06) | [#511](https://github.com/Manuito83/torn-pda/pull/511) | Merged on 2026-11-07 as `214734ca`. In `bf663eb2`, the maintainer keeps the saved copy when the action list is empty, so a second pass does not save an empty list. |
+| Quick items picker observer | none (checked in headless Chromium) | `picker-observer` (commit `ebcaa3df`, on `origin/develop` `28d0d74e`, pushed to the fork on 2026-11-06) | [#512](https://github.com/Manuito83/torn-pda/pull/512) | Merged on 2026-11-07 as `393e62f8`. In `bf663eb2`, the maintainer set the root back to `document.body` (not `#category-wrap`), skipped the picker's own `.pda-picker-actions` in the actions query, and renamed `processItem` to `updateItem`. The observer still reads only the changed nodes. |
+| Chain reader observer (finding 1.6) | `perf/chain-bar-observer` (`bf83e536`) | `chain-bar-observer` (`03335af2`) | [#510](https://github.com/Manuito83/torn-pda/pull/510) | Merged on 2026-11-06 as `1c7b9065`. The maintainer shortened one comment (`30268f0a`). |
+| `onLoadStop` awaits only the copy | `perf/ols-send` (`65ace9f9`) | `onload-stop-one-wait` (commit `39609cb1`, on `origin/develop` `28d0d74e`) | [#509](https://github.com/Manuito83/torn-pda/pull/509) | Merged on 2026-11-06 as `34a8163e`. In `30268f0a`, the maintainer replaced `_quiet(...)` with `.ignore()`. |
 | GM handler crashes after renderer recovery (before this project) | none | `fix/gm-handler-reinject` | [#480](https://github.com/Manuito83/torn-pda/pull/480) | Merged on 2026-07-22. |
-| B1 1.7 part 4, start script skip and page `@match` check | `perf/start-skip` (`81da92e3`), `perf/start-guard` (`cbfa3236`) | `start-guard` (commit `9b523b82`, on `match-semantics` plus the #505 commit, pushed to the fork on 2026-11-03) | [#508](https://github.com/Manuito83/torn-pda/pull/508) | Open since 2026-11-04. #505 and #507 are merged now. The maintainer's `74a51407` matches a pattern that has a `#` against the full URL, and the rest without the hash. `start-guard` is rebased on `28d0d74e` as `161d6d62` and force-pushed: the page guard follows the same rule, and the guard test has two `#` patterns. 98 model tests pass. |
+| B1 1.7 part 4, start script skip and page `@match` check | `perf/start-skip` (`81da92e3`), `perf/start-guard` (`cbfa3236`) | `start-guard` (commit `9b523b82`, on `match-semantics` plus the #505 commit, pushed to the fork on 2026-11-03) | [#508](https://github.com/Manuito83/torn-pda/pull/508) | Merged on 2026-11-06 as `7a1e1af2`. In `30268f0a`, the maintainer moved `oncePerDocument` and the start source into `UserScriptModel` (`startSource(apiKey)`, `needsRegistering`), records a source only after `addUserScripts` succeeds (so a failed start script is tried again), compares with `!=` in place of `identical`, and puts `removeAllUserScripts` behind the script lock. |
 | `@match` as in Tampermonkey (issue #314) | `perf/match-semantics` (`29014052`) | `match-semantics` (commit `787b2406`, on `5ea591af`, pushed to the fork on 2026-11-03) | [#507](https://github.com/Manuito83/torn-pda/pull/507) | Merged on 2026-11-04 as `d1280765`. The maintainer then added `74a51407`. |
 | B1 1.7 part 3, cache the adapted source | `perf/cond-sources-list` | `cond-sources-cache` (commit `d7165545`, on `5ea591af`, pushed to the fork on 2026-11-03) | [#505](https://github.com/Manuito83/torn-pda/pull/505) | Merged on 2026-11-03 as `87387e22`. |
 | B1 1.7 part 1, end scripts together | deleted | deleted | [#504](https://github.com/Manuito83/torn-pda/pull/504) | Merged on 2026-11-03 as `1edf12c5`, without comments or changes. |
@@ -439,7 +443,12 @@ To see the state of all PRs:
 gh pr list -R Manuito83/torn-pda --author xentac --state all
 ```
 
-- CI on `develop` is red again since `948c2495` ("Chat notification
+- CI: the maintainer fixed the stubs in `a08b509b` (2026-11-07).
+  `readNativeApiToken` is now in `native_user_provider.dart`. For local
+  builds, copy `lib/config/native_user_provider.dart.example` and
+  `native_auth_models.dart.example` over the ignored files in
+  `lib/torn-pda-native/auth/` (done in the nineteenth session). The
+  record before the fix: CI on `develop` was red since `948c2495` ("Chat notification
   reply with the native login"). `lib/utils/chat_notifications.dart`
   calls `readNativeApiToken` and `playerIdFromApiToken`, and the stub
   `lib/config/chat_engine.dart.example` does not have them. Analyze,
@@ -1147,6 +1156,20 @@ gh pr list -R Manuito83/torn-pda --author xentac --state all
    | `step=your` | 1647 | 213 / 2 | 638 / 4 |
    | `step=your&type=N` | 1386 | 241 / 3 | 388 / 3 |
    | `sid=crimes` | 955 | 760 / 3 | 1314 / 5 |
+
+   Nineteenth session (2026-11-07): the maintainer merged #508 to #513
+   by hand, with fixes on top (`30268f0a`, `bf663eb2`), so GitHub shows
+   them as closed. See the PR table. `develop` is at `3914180d`
+   (version 4.0.0+703). `perf/analysis` is rebased on it. Two conflicts
+   in `webview_full.dart`, both from the `PerfTrace` wrapper: the new
+   `_loadGen++` goes inside the `onLoadStart` wrapper, and the initial
+   scripts keep the upstream code (only the handler scripts get
+   `_guardedOnce`, because the start source has its own guard now). The
+   20 `PerfTrace.getHtml` calls stay, `flutter analyze lib` is clean,
+   and 103 model tests pass. Not pushed yet. The measurement branches
+   of #508 to #510 can go now (the rule under the PR table), with the
+   user's approval. The awake tabs design is unchanged: the next step is
+   step 1, the live pass, which the user drives.
 
    Eighteenth session: the PRs #508 to #513 are still open, with no
    comment or review, and all are mergeable (checked 2026-11-06).
